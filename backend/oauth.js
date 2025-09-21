@@ -1,40 +1,35 @@
-// backend/oauth.js
-
 const express = require("express");
 const axios = require("axios");
 const qs = require("querystring");
+const crypto = require("crypto");
 const router = express.Router();
 const { CLIENT_ID, CLIENT_SECRET, REDIRECT_URI } = require("./config");
 const storage = require("./storage");
 
 // Step 1: Redirect user to Uber OAuth
 router.get("/login", (req, res) => {
+  const state = crypto.randomBytes(8).toString("hex");
+  storage.oauthState = state;
+
   const oauthUrl = `https://auth.uber.com/oauth/v2/authorize?` +
     `client_id=${CLIENT_ID}` +
     `&response_type=code` +
     `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-    `&scope=eats.pos_provisioning`;
+    `&scope=eats.pos_provisioning` +
+    `&state=${state}`;
 
   res.redirect(oauthUrl);
 });
 
-// Step 2: OAuth callback from Uber
-router.get("/callback", async (req, res) => {
-  const { code } = req.query;
+// Step 2: Uber redirects back with code → exchange for tokens
+router.get("/redirect", async (req, res) => {
+  const { code, error, state } = req.query;
 
-  // 400: Missing code
-  if (!code) {
-    return res.status(400).send(`
-      ⚠️ Authorization code is missing.
-      Possible reasons:
-      - Merchant did not click "Allow / Consent" on Uber login page
-      - Redirect URL misconfigured in Developer Dashboard
-      👉 Next action: Ask merchant to click "Connect with Uber Eats" again.
-    `);
-  }
+  if (error) return res.status(403).send(`⚠️ Authorization failed: ${error}\n👉 Next action: Ask merchant to retry and grant permissions.`);
+  if (!code) return res.status(400).send(`⚠️ Missing authorization code.\n👉 Next action: Ensure redirect_uri matches Uber dashboard and retry login.`);
+  if (!state || state !== storage.oauthState) return res.status(400).send(`⚠️ Invalid state parameter.\n👉 Next action: Possible CSRF attack — restart login flow.`);
 
   try {
-    // Exchange authorization code for access token (form-urlencoded per Uber docs)
     const tokenResponse = await axios.post(
       "https://auth.uber.com/oauth/v2/token",
       qs.stringify({
@@ -42,64 +37,71 @@ router.get("/callback", async (req, res) => {
         client_secret: CLIENT_SECRET,
         grant_type: "authorization_code",
         redirect_uri: REDIRECT_URI,
-        code: code
+        code
       }),
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
 
     const { access_token, refresh_token, expires_in } = tokenResponse.data;
 
-    // Store tokens (for demo, under fixed merchant key; in production, tie to actual merchant ID)
     storage.userTokens["demoMerchant"] = {
       access_token,
       refresh_token,
-      expires_in
+      expires_in,
+      obtained_at: Date.now()
     };
 
-    res.send("✅ OAuth successful! Access token received. You can now fetch stores.");
+    res.send("✅ OAuth successful! Token received. Ready for /api/stores.");
   } catch (err) {
-    console.error("OAuth error:", err.response?.data || err.message);
-
-    const status = err.response?.status;
-    const uberError = err.response?.data?.error_description || err.response?.data?.error;
-
-    switch (status) {
-      case 400:
-        return res.status(400).send(`
-          ⚠️ Invalid request while exchanging authorization code.
-          Uber error: ${uberError || "Missing or invalid parameter"}
-          👉 Next action: Check code, redirect_uri, client_id are correct.
-        `);
-      case 401:
-        return res.status(401).send(`
-          ⚠️ Unauthorized: Invalid client ID or client secret.
-          Uber error: ${uberError || "invalid_client"}
-          👉 Next action: Verify CLIENT_ID and CLIENT_SECRET in config.js.
-        `);
-      case 403:
-        return res.status(403).send(`
-          ⚠️ Access denied: Merchant did not grant consent.
-          Uber error: ${uberError || "access_denied"}
-          👉 Next action: Ask merchant to re-click "Connect with Uber Eats".
-        `);
-      case 429:
-        return res.status(429).send(`
-          ⚠️ Too many requests: Rate limit exceeded.
-          👉 Next action: Retry after cooldown. Cache and reuse tokens until expiry.
-        `);
-      case 500:
-        return res.status(500).send(`
-          ⚠️ Uber server error while exchanging code for token.
-          👉 Next action: Retry later, or contact Uber developer support.
-        `);
-      default:
-        return res.status(500).send(`
-          ⚠️ Unexpected error while exchanging authorization code.
-          Uber error: ${uberError || "Unknown"}
-          👉 Next action: Please retry login process.
-        `);
-    }
+    handleOAuthError(err, res);
   }
 });
 
+// Helper: auto-refresh token
+async function getValidToken(merchantId = "demoMerchant") {
+  const record = storage.userTokens[merchantId];
+  if (!record) throw new Error("No tokens stored for merchant");
+
+  const now = Date.now();
+  const expiresAt = record.obtained_at + record.expires_in * 1000;
+  if (now < expiresAt - 60 * 1000) return record.access_token;
+
+  try {
+    const refreshResponse = await axios.post(
+      "https://auth.uber.com/oauth/v2/token",
+      qs.stringify({
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        grant_type: "refresh_token",
+        refresh_token: record.refresh_token
+      }),
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
+
+    const { access_token, refresh_token, expires_in } = refreshResponse.data;
+    storage.userTokens[merchantId] = { access_token, refresh_token, expires_in, obtained_at: Date.now() };
+    console.log("🔄 Token refreshed successfully");
+    return access_token;
+  } catch (err) {
+    console.error("Token refresh error:", err.response?.data || err.message);
+    throw new Error("Unable to refresh token. Merchant may need to re-login.");
+  }
+}
+
+// Error handler
+function handleOAuthError(err, res) {
+  const status = err.response?.status;
+  const uberError = err.response?.data?.error_description || err.response?.data?.error || JSON.stringify(err.response?.data);
+
+  switch (status) {
+    case 400: return res.status(400).send(`⚠️ Invalid request. Uber error: ${uberError}\n👉 Next action: Verify client_id, redirect_uri, and code parameters.`);
+    case 401: return res.status(401).send(`⚠️ Unauthorized / expired token. Uber error: ${uberError}\n👉 Next action: Try refreshing the access_token using refresh_token.`);
+    case 403: console.log("🔁 Access denied: redirecting user to /oauth/login for consent"); return res.redirect("/oauth/login");
+    case 429: return res.status(429).send(`⚠️ Rate limit exceeded. Uber error: ${uberError}\n👉 Next action: Wait a few seconds and retry. Cache tokens until expiry.`);
+    case 500: return res.status(500).send(`⚠️ Uber server error. Uber error: ${uberError}\n👉 Next action: Retry later or contact Uber support.`);
+    default: return res.status(status || 500).send(`⚠️ Unexpected error. Uber error: ${uberError}\n👉 Next action: Retry login process or check app configuration.`);
+  }
+}
+
+router.getValidToken = getValidToken;
 module.exports = router;

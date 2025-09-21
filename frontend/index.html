@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Uber Eats Integration Demo</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <h1>Uber Eats Store Activation</h1>
@@ -17,9 +18,12 @@
 
   <hr>
 
-  <h2>Webhook Events</h2>
+  <h2>Webhook Events (last 50)</h2>
   <ul id="eventList"></ul>
 
+  <!-- Socket.IO client -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <!-- Main frontend script -->
   <script src="script.js"></script>
 </body>
 </html>

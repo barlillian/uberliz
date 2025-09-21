@@ -1,0 +1,58 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+  background-color: #f9f9f9;
+}
+
+h1, h2 {
+  color: #333;
+}
+
+button {
+  padding: 5px 10px;
+  margin-left: 10px;
+  cursor: pointer;
+  border: none;
+  background-color: #0070f3;
+  color: white;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background-color: #005bb5;
+}
+
+.store-item, #eventList li {
+  margin-bottom: 8px;
+  padding: 5px;
+  background-color: white;
+  border-radius: 4px;
+  list-style: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.store-name {
+  font-weight: bold;
+}
+
+.activated {
+  color: green;
+  margin-left: 10px;
+  font-weight: bold;
+}
+
+#storeList, #eventList {
+  padding-left: 0;
+}
+
+hr {
+  margin: 20px 0;
+  border: none;
+  border-top: 1px solid #ccc;
+}
+
+.highlight {
+  background-color: #d4edda; /* light green */
+  transition: background-color 1s ease;
+}
