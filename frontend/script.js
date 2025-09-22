@@ -1,6 +1,7 @@
 const connectBtn = document.getElementById('connectBtn');
 const storeList = document.getElementById('storeList');
 const eventList = document.getElementById('eventList');
+const loading = document.getElementById('loading');
 
 let stores = [];
 let events = [];
@@ -13,9 +14,21 @@ connectBtn.addEventListener('click', () => {
 });
 
 // --------------------
-// Step 2: Fetch stores initially
+// Show / hide loading
+// --------------------
+function showLoading(msg = '⏳ Loading...') {
+  loading.textContent = msg;
+  loading.classList.remove('hidden');
+}
+function hideLoading() {
+  loading.classList.add('hidden');
+}
+
+// --------------------
+// Step 2: Fetch stores
 // --------------------
 async function fetchStores() {
+  showLoading('Fetching stores...');
   try {
     const res = await fetch('/api/stores');
     const data = await res.json();
@@ -29,6 +42,8 @@ async function fetchStores() {
     renderStores();
   } catch (err) {
     alert(`Error fetching stores:\n${err.message}`);
+  } finally {
+    hideLoading();
   }
 }
 
@@ -47,12 +62,14 @@ function renderStores() {
 
     if (store.isActivated) {
       const span = document.createElement('span');
-      span.textContent = '✅ Activated';
+      span.textContent = ' ✅ Activated';
+      span.classList.add('activated');
       li.appendChild(span);
     } else {
       const btn = document.createElement('button');
-      btn.textContent = 'Activate';
-      btn.onclick = () => activateStore(store.store_id);
+      btn.textContent = 'Link Store with App';
+      btn.classList.add('btn-small');
+      btn.onclick = () => activateStore(store.store_id, btn);
       li.appendChild(btn);
     }
 
@@ -63,7 +80,9 @@ function renderStores() {
 // --------------------
 // Step 3: Activate store
 // --------------------
-async function activateStore(storeId) {
+async function activateStore(storeId, btnElement) {
+  btnElement.disabled = true;
+  showLoading(`Activating store ${storeId}...`);
   try {
     const res = await fetch(`/api/stores/${storeId}/activate`, { method: 'POST' });
     const data = await res.json();
@@ -73,48 +92,58 @@ async function activateStore(storeId) {
       throw new Error(msg);
     }
 
-    alert(`✅ Store ${storeId} activated successfully!`);
-    await fetchStores();
+    alert(`✅ Store ${storeId} activation requested! Waiting for Uber confirmation...`);
   } catch (err) {
     alert(`Error activating store:\n${err.message}`);
+  } finally {
+    btnElement.disabled = false;
+    hideLoading();
   }
 }
 
 // --------------------
 // Step 4: Socket.IO real-time updates
 // --------------------
-const socket = io(); // Socket.IO connection
+const socket = io();
 
-// Real-time store activation updates (Handle store.provisioned events)
 socket.on("storeProvisioned", ({ storeId }) => {
   const store = stores.find(s => s.store_id === storeId);
   if (store) {
     store.isActivated = true;
     renderStores();
-
-    // Highlight the updated store
-    const liElements = storeList.querySelectorAll('li');
-    liElements.forEach(li => {
-      if (li.textContent.includes(storeId)) {
-        li.classList.add('highlight');
-        setTimeout(() => li.classList.remove('highlight'), 2000); // 2s flash
-      }
-    });
-
+    highlightStore(storeId);
   } else {
-    // If store is new, fetch updated list
     fetchStores();
   }
 });
 
-// Real-time webhook events
+socket.on("storeDeprovisioned", ({ storeId }) => {
+  const store = stores.find(s => s.store_id === storeId);
+  if (store) {
+    store.isActivated = false;
+    renderStores();
+    highlightStore(storeId);
+  } else {
+    fetchStores();
+  }
+});
+
 socket.on("webhookEvent", (event) => {
-  events.unshift(event); // newest events on top
+  events.unshift(event);
   if (events.length > 50) events.pop();
   renderEvents();
 });
 
-// Render webhook events
+function highlightStore(storeId) {
+  const liElements = storeList.querySelectorAll('li');
+  liElements.forEach(li => {
+    if (li.textContent.includes(storeId)) {
+      li.classList.add('highlight');
+      setTimeout(() => li.classList.remove('highlight'), 2000);
+    }
+  });
+}
+
 function renderEvents() {
   eventList.innerHTML = '';
   events.forEach(e => {

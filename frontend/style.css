@@ -1,58 +1,105 @@
 body {
   font-family: Arial, sans-serif;
-  margin: 20px;
-  background-color: #f9f9f9;
+  background-color: #f4f6f8;
+  color: #333;
+  margin: 0;
+  padding: 0;
+}
+
+.container {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
 h1, h2 {
-  color: #333;
-}
-
-button {
-  padding: 5px 10px;
-  margin-left: 10px;
-  cursor: pointer;
-  border: none;
-  background-color: #0070f3;
-  color: white;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-
-button:hover {
-  background-color: #005bb5;
-}
-
-.store-item, #eventList li {
-  margin-bottom: 8px;
-  padding: 5px;
-  background-color: white;
-  border-radius: 4px;
-  list-style: none;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.store-name {
-  font-weight: bold;
-}
-
-.activated {
-  color: green;
-  margin-left: 10px;
-  font-weight: bold;
-}
-
-#storeList, #eventList {
-  padding-left: 0;
+  color: #111;
 }
 
 hr {
   margin: 20px 0;
   border: none;
-  border-top: 1px solid #ccc;
+  border-top: 1px solid #ddd;
 }
 
-.highlight {
-  background-color: #d4edda; /* light green */
-  transition: background-color 1s ease;
+.btn {
+  background-color: #1fbad6;
+  color: #fff;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.btn:hover {
+  background-color: #1596b0;
+}
+
+.btn-small {
+  background-color: #4caf50;
+  color: #fff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-left: 10px;
+  font-size: 14px;
+}
+
+.btn-small:hover {
+  background-color: #388e3c;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.store-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  background-color: #fafafa;
+}
+
+.store-item span {
+  font-weight: 500;
+}
+
+.store-item .activated {
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.store-item.highlight {
+  background-color: #fff8c4;
+  border-color: #ffeb3b;
+}
+
+#eventList li {
+  padding: 6px 8px;
+  border-bottom: 1px solid #eee;
+  font-size: 13px;
+  color: #555;
+}
+
+/* Loading Spinner */
+.loading {
+  font-weight: bold;
+  color: #1fbad6;
+  margin: 12px 0;
+}
+.hidden {
+  display: none;
 }

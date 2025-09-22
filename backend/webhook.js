@@ -1,11 +1,12 @@
-// backend/webhook.js
-
 const express = require("express");
 const crypto = require("crypto");
 const router = express.Router();
 const storage = require("./storage");
 require("dotenv").config();
 
+// --------------------
+// Middleware
+// --------------------
 router.use(express.json());
 
 // --------------------
@@ -15,9 +16,10 @@ function verifyUberSignature(req) {
   const signature = req.headers["x-uber-signature"];
   if (!signature) return false;
 
+  // Use rawBody from server.js middleware
   const computed = crypto
     .createHmac("sha256", process.env.UBER_CLIENT_SECRET)
-    .update(JSON.stringify(req.body))
+    .update(req.rawBody || "")
     .digest("hex");
 
   return signature === computed;
@@ -26,8 +28,8 @@ function verifyUberSignature(req) {
 // --------------------
 // Webhook endpoint for all Uber events
 // --------------------
-router.post("/webhooks/store-provisioned", (req, res) => {
-  const io = req.app.get("io"); // get Socket.IO instance
+router.post("/", (req, res) => {
+  const io = req.app.get("io"); // Socket.IO instance
 
   // 1️⃣ Verify signature
   if (!verifyUberSignature(req)) {
@@ -36,23 +38,22 @@ router.post("/webhooks/store-provisioned", (req, res) => {
   }
 
   const event = req.body;
-  console.log("📩 Received webhook:", event);
-
   const storeId = event.store_id;
 
-  // 2️⃣ Handle store.provisioned
-  if (event.event_type === "store.provisioned") {
-    if (!storeId) {
-      console.error("❌ Missing store_id in event", event);
-      return res.sendStatus(400);
-    }
+  console.log("📩 Received Uber webhook:", event);
 
-    // Update activation status
+  // 2️⃣ Update activation status for store.provisioned
+  if (event.event_type === "store.provisioned" && storeId) {
     storage.activationStatus[storeId] = "activated";
     console.log(`✅ Store provisioned: ${storeId}`);
   }
 
-  // 3️⃣ Log all events in memory
+  if (event.event_type === "store.deprovisioned" && storeId) {
+    storage.activationStatus[storeId] = "deactivated";
+    console.log(`⚠️ Store deprovisioned: ${storeId}`);
+  }
+
+  // 3️⃣ Log all events
   const logEntry = {
     timestamp: new Date().toISOString(),
     type: event.event_type,
@@ -61,18 +62,19 @@ router.post("/webhooks/store-provisioned", (req, res) => {
   };
   storage.events.push(logEntry);
 
-  // 4️⃣ Emit real-time events to connected clients
+  // 4️⃣ Emit real-time events to frontend
   if (io) {
-    // Emit specific storeProvisioned event
-    if (event.event_type === "store.provisioned" && storeId) {
-      io.emit("storeProvisioned", { storeId });
+    // Emit specific storeProvisioned/deprovisioned events for UI update
+    if (storeId) {
+      if (event.event_type === "store.provisioned") io.emit("storeProvisioned", { storeId });
+      if (event.event_type === "store.deprovisioned") io.emit("storeDeprovisioned", { storeId });
     }
 
-    // Emit all webhook events for real-time debug
+    // Emit all events for real-time debug
     io.emit("webhookEvent", logEntry);
   }
 
-  // 5️⃣ Respond to Uber with empty 200
+  // 5️⃣ Respond with empty 200 to Uber
   return res.sendStatus(200);
 });
 

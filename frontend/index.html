@@ -6,24 +6,27 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Uber Eats Store Activation</h1>
+  <div class="container">
+    <h1>Uber Eats Store Activation</h1>
 
-  <!-- Connect Button -->
-  <button id="connectBtn">Connect with Uber Eats</button>
+    <!-- Connect Button -->
+    <button id="connectBtn" class="btn">Connect with Uber Eats</button>
 
-  <hr>
+    <div id="loading" class="loading hidden">⏳ Loading...</div>
 
-  <h2>Your Stores</h2>
-  <ul id="storeList"></ul>
+    <hr>
 
-  <hr>
+    <h2>Your Stores</h2>
+    <ul id="storeList" class="list"></ul>
 
-  <h2>Webhook Events (last 50)</h2>
-  <ul id="eventList"></ul>
+    <hr>
+
+    <h2>Webhook Events (last 50)</h2>
+    <ul id="eventList" class="list"></ul>
+  </div>
 
   <!-- Socket.IO client -->
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <!-- Main frontend script -->
   <script src="script.js"></script>
 </body>
 </html>

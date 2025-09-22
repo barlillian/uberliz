@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const helmet = require("helmet");
-const http = require("http"); // Add HTTP server
+const http = require("http");
 require("dotenv").config();
 
 const oauthRoutes = require("./oauth");
@@ -10,15 +10,15 @@ const apiRoutes = require("./api");
 const webhookRoutes = require("./webhook");
 
 const app = express();
-const server = http.createServer(app); // wrap app in HTTP server
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
 // Setup Socket.IO
 const { Server } = require("socket.io");
 const io = new Server(server, {
-  cors: { origin: "*" } // allow any frontend origin for demo
+  cors: { origin: "*" }
 });
-app.set("io", io); // make io accessible in routes
+app.set("io", io);
 
 // Middleware
 app.use(helmet());
@@ -27,6 +27,7 @@ app.use(express.json({
   verify: (req, res, buf) => { req.rawBody = buf.toString(); }
 }));
 
+// Request logging
 app.use((req, res, next) => {
   console.log(`➡️ ${req.method} ${req.url}`);
   next();
@@ -40,12 +41,14 @@ app.use("/oauth", oauthRoutes);
 app.use("/api", apiRoutes);
 app.use("/webhooks", webhookRoutes);
 
-// Serve frontend
+// Serve frontend static assets
 app.use(express.static(path.join(__dirname, "../frontend")));
-app.use((req, res, next) => {
-  if (req.method !== "GET") return next();
+
+// Catch-all route for frontend
+app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, "../frontend/index.html"));
 });
+
 
 // Error handler
 app.use((err, req, res, next) => {
