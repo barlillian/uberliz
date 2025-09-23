@@ -1,39 +1,53 @@
 # Uber Eats Integration MVP
 
-This is a **minimal viable product (MVP)** demonstrating the Uber Eats Integration Activation flow, designed for interview purposes. The project implements a working backend and frontend that allows a merchant to authorize my client ID vis OAuth(connect with Uber Eats), use OAuth token to retrieve all stores associated with the merchant(retrieve merchant's stores), activate my app(client ID) on a store by calling the intergration Activation API(activate a store integration), and handle webhook for integration status updates.
+This is a **minimal viable product (MVP)** demonstrating the Uber Eats Integration Activation flow, designed for interview purposes. The project implements a working backend and frontend that allows a merchant to
+  1. Authorize my client ID vis OAuth(connect with Uber Eats)
+  2. Use OAuth token to retrieve all stores associated with the merchant(retrieve merchant's stores) 
+  3. Activate my app(client ID) on a store via Intergration Activation API(Link App to Store) 
+  4. Handle webhooks for integration status updates
+
+⚠️ Note: This MVP only uses in-memory storage for tokens, store mapping, and webhook events.
 
 ---
 
 ## Features / MVP Scope
 
-### 1️⃣ OAuth Authorization 
-- **Button:** "Connect with Uber Eats" on the frontend.
-- **Flow:** Follows the **Authorization Code Flow**:
-  1. Merchant clicks the button "Connect with Uber Eats"
-  2. Redirects to Uber OAuth login (`GET https://auth.uber.com/oauth/v2/authorize`)
-  3. Merchant logs in → Uber redirects back to my app `/oauth/redirect` with an `authorization_code`.
+### 1️⃣ OAuth Authorization & Token Exchange
+- **Flow:** (Authorization Code Flow)
+  1. Merchant clicks the button "Connect with Uber Eats" → triggers my app endpoint `/oauth/login`
+  2. My app redirects merchant to Uber OAuth login:`GET https://auth.uber.com/oauth/v2/authorize`
+  3. Merchant logs in Uber page and consent → Uber redirects merchant back to my app `/oauth/redirect` with an `authorization_code`
+  4. My app backend calls Uber Token endpoint: POST https://auth.uber.com/oauth/v2/token to exchange the `authorization_code` for `User Access Token` and `refresh_token`
+  5. Tokens are stored in-memory for this session
+- **UI** "Connect with Uber Eats" button
 
-### 2️⃣ Token Enchange
-- **Endpoint:** Call Authentication endpoint(authorization_code flow): `POST /https://auth.uber.com/oauth/v2/token`
-  1. My backend exchanges authorization_code for **User Access Token** and refresh_token
-
-### 3️⃣ Retrieve merchant's all Stores
-- **Endpoint:** Call Get Stores endpoint: `GET /https://api.uber.com/v1/delivery/stores` using the User Access Token.
-- **UI:** Displays the merchant's all stores
-
-### 4️⃣ Activate Store Integration (Link Application to Store)
-- **Endpoint:** Call Integration Activation endpoint: `POST https://api.uber.com/v1/eats/stores/{store_id}/pos_data` to link my client ID with selected store 
-- **UI:** 
-  - Merchant selects a store → clicks **Link Store with App**.
-  - Confirm success when Uber sends the `store.provisioned` webhook, then App UI updates automatically and displays: "Status: ✅ Store Activated" next to each store
-
-### 5️⃣ Webhook Handling
-- **Endpoint(I built):** Uber notified store activation confirmation and trigger my endpoint `POST /webhooks/store-provisioned`to receive webhook events(integration status update), and display in UI and return 200 response to Uber
+### 2️⃣ Retrieve Merchant's all Stores
 - **Flow:**
-  1. Uber sends webhook to notify confirmation of store activation.
-  2. My app verifies Uber's signature, parses webhook response and updates in-memory store status, and returns 200 response to Uber
-  3. UI updates in real-time using **Socket.IO** to reflect activation status.
+  1. On page load (After `/oauth/redirect`), my frontend automatically triggers my app `/api/stores`
+  2. My app backend calls Uber Get Stores API: `GET https://api.uber.com/v1/delivery/stores` using the stored access token
+  3. Response is mapped and stored in-memory (internalStoreMap, merchantStores) and returned to frontend 
+- **UI:** Frontend automatically displays list of merchant's stores. Stores not yet activated show a "Link Store with App" button
 
+### 3️⃣ Activate Store Integration (Link Application to Store)
+- **Flow:** 
+  1. Merchant clicks "Link Store with App" button → triggers my app endpoint `/api/stores/:store_id/activate`
+  2. My app backend calls Uber Integration Activation API: `POST https://api.uber.com/v1/eats/stores/{store_id}/pos_data` with my client ID to link the store
+  3. Backend sets `activationStatus[storeId] = "pending"` in memory. The store is not yet activated until webhook confirmation arrives 
+- **UI:** Frontend shows alert "Activation requested! Waiting for Uber confirmation..." in the Your Stores section; the store remains in this state until the webhook is received
+
+### 4️⃣ Webhook Handling
+- **Flow:**
+  1. Uber confirms store activation by sending webhook `store.provisioned` → triggers my app endpoint `/webhooks/store-provisioned` 
+  2. My backend verifies Uber signature, updates `activationStatus[storeId] = 'activated"` → stores the webhook event in memory → emits real-time Socket.IO events to frontend → returns 200 response to Uber
+  3. Frontend receives the Socket.IO event → updates Your Stores section to show "✅ Activated"
+  4. Frontend logs the webhook event in "Webhook Events (last 50)" section.
+- **UI:** Real-time updates:
+  1. Store status changes from "Activation requested! Waiting for Uber confirmation..." → "✅ Activated" in Your Stores section
+  2. Webhook events appear live in the Webhook Events section
+- **Edge Case:**
+  1. If the webhook never arrives (activation fails or network issue), the store remains in “Activation requested! Waiting for Uber confirmation…” state
+  2. No automatic timeout or failure handling is implemented in this MVP 
+  
 ---
 
 ## Interview Flow & Notes

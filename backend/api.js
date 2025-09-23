@@ -7,14 +7,19 @@ const { UBER_API_BASE_URL } = require("./config");
 const { INTEGRATOR_BRAND_ID = "app-brand-1jj9th32" } = process.env;
 
 // --------------------
-// Helper: map Uber store to internal store map
+// Helper: After calling GET Stores trigger mapStore and save storeId in InternalStoreMap
 // --------------------
 function mapStore(tokenKey, store) {
-  const storeId = store.store_id;
+  const storeId = store.id; // Uber's authoritative store ID
+
+  // Generate merchant_store_id for payload
+  const merchantStoreId = `${store.name.replace(/\s+/g, "_")}-${storeId.slice(0,8)}`;
+
   storage.internalStoreMap[storeId] = {
     tokenKey,
     name: store.name,
-    address: store.location?.address
+    address: store.location?.street_address_line_one,
+    merchant_store_id: merchantStoreId
   };
 
   if (!storage.activationStatus[storeId]) storage.activationStatus[storeId] = "pending";
@@ -83,7 +88,8 @@ router.post("/stores/:store_id/activate", async (req, res) => {
   const storeId = req.params.store_id;
   const storeMapping = storage.internalStoreMap[storeId];
 
-  if (!storeMapping) return sendApiError(res, 404, { message: "Store mapping not found" }, "Ensure store_id is valid and fetched from /api/stores");
+  if (!storeMapping)
+    return sendApiError(res, 404, { message: "Store mapping not found" }, "Ensure store_id is valid and fetched from /api/stores");
 
   const tokenKey = storeMapping.tokenKey;
 
@@ -96,9 +102,9 @@ router.post("/stores/:store_id/activate", async (req, res) => {
         allow_special_instruction_requests: false
       },
       integrator_brand_id: INTEGRATOR_BRAND_ID,
-      integrator_store_id: `app-${storeId}`,   // internal app store ID
+      integrator_store_id: `app-${storeId}`,          // internal app store ID
       is_order_manager: true,
-      merchant_store_id: `Store-${storeId}`,   // demo merchant label
+      merchant_store_id: storeMapping.merchant_store_id, // use the generated ID here
       require_manual_acceptance: false,
       store_configuration_data: JSON.stringify({ store_type: "restaurant", accepts_pickup: true, accepts_delivery: true }),
       webhooks_config: {
@@ -113,11 +119,12 @@ router.post("/stores/:store_id/activate", async (req, res) => {
       headers: { Authorization: `Bearer ${token}` }
     });
 
-    storage.activationStatus[storeId] = "activated";
+    // Keep status as pending until webhook arrives
+    storage.activationStatus[storeId] = "pending";
 
     res.status(200).json({
       status: 200,
-      message: `Store ${storeMapping.name} activated successfully!`
+      message: `Store ${storeMapping.name} Activation requested! Waiting for Uber confirmation...`
     });
 
   } catch (err) {

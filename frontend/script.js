@@ -5,6 +5,7 @@ const loading = document.getElementById('loading');
 
 let stores = [];
 let events = [];
+let loadingStores = {}; // Track which stores are in “activating” state
 
 // --------------------
 // Step 1: OAuth login
@@ -14,7 +15,7 @@ connectBtn.addEventListener('click', () => {
 });
 
 // --------------------
-// Show / hide loading
+// Show / hide loading for global messages
 // --------------------
 function showLoading(msg = '⏳ Loading...') {
   loading.textContent = msg;
@@ -56,15 +57,21 @@ function renderStores() {
     const li = document.createElement('li');
     li.classList.add('store-item');
 
-    const nameSpan = document.createElement('span');
-    nameSpan.textContent = `${store.name} (${store.store_id})`;
-    li.appendChild(nameSpan);
+    const infoSpan = document.createElement('span');
+    infoSpan.textContent = `${store.name} | Uber ID: ${store.store_id}`; // Only show Uber info
+    li.appendChild(infoSpan);
 
     if (store.isActivated) {
-      const span = document.createElement('span');
-      span.textContent = ' ✅ Activated';
-      span.classList.add('activated');
-      li.appendChild(span);
+      const statusSpan = document.createElement('span');
+      statusSpan.textContent = ' ✅ Activated';
+      statusSpan.classList.add('activated');
+      li.appendChild(statusSpan);
+    } else if (loadingStores[store.store_id]) {
+      // Show per-store activating message
+      const statusSpan = document.createElement('span');
+      statusSpan.textContent = `⏳ Store Activating...! Waiting for Uber confirmation`;
+      statusSpan.classList.add('activating');
+      li.appendChild(statusSpan);
     } else {
       const btn = document.createElement('button');
       btn.textContent = 'Link Store with App';
@@ -82,7 +89,9 @@ function renderStores() {
 // --------------------
 async function activateStore(storeId, btnElement) {
   btnElement.disabled = true;
-  showLoading(`Activating store ${storeId}...`);
+  loadingStores[storeId] = true; // Mark store as activating
+  renderStores(); // Update UI immediately
+
   try {
     const res = await fetch(`/api/stores/${storeId}/activate`, { method: 'POST' });
     const data = await res.json();
@@ -92,12 +101,13 @@ async function activateStore(storeId, btnElement) {
       throw new Error(msg);
     }
 
-    alert(`✅ Store ${storeId} activation requested! Waiting for Uber confirmation...`);
+    alert(`✅ Activation requested for store ${storeId}. Waiting for Uber confirmation...`);
   } catch (err) {
     alert(`Error activating store:\n${err.message}`);
+    delete loadingStores[storeId]; // Remove activating state on error
   } finally {
     btnElement.disabled = false;
-    hideLoading();
+    renderStores();
   }
 }
 
@@ -110,6 +120,7 @@ socket.on("storeProvisioned", ({ storeId }) => {
   const store = stores.find(s => s.store_id === storeId);
   if (store) {
     store.isActivated = true;
+    delete loadingStores[storeId]; // Stop loading when Uber confirms
     renderStores();
     highlightStore(storeId);
   } else {
@@ -150,7 +161,7 @@ function renderEvents() {
     const timestamp = e.timestamp || new Date().toISOString();
     const formattedTime = new Date(timestamp).toLocaleString();
     const li = document.createElement('li');
-    li.textContent = `[${formattedTime}] ${JSON.stringify(e.raw)}`;
+    li.textContent = `[${formattedTime}] ${e.type} | Store ID: ${e.storeId} | Payload: ${JSON.stringify(e.raw)}`;
     eventList.appendChild(li);
   });
 }
