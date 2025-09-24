@@ -13,7 +13,8 @@ router.get("/login", (req, res) => {
   const state = crypto.randomBytes(8).toString("hex");
   storage.oauthStates[state] = true; // per-session state
 
-  const oauthUrl = `https://auth.uber.com/oauth/v2/authorize?` +
+  const oauthUrl =
+    `https://auth.uber.com/oauth/v2/authorize?` +
     `client_id=${CLIENT_ID}` +
     `&response_type=code` +
     `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
@@ -48,11 +49,12 @@ router.get("/redirect", async (req, res) => {
     );
 
     const { access_token, refresh_token, expires_in } = tokenResponse.data;
-    const tokenKey = `token-${Date.now()}`; // dynamic key for this OAuth session
+    const tokenKey = `token-${Date.now()}`;
 
     storage.userTokens[tokenKey] = { access_token, refresh_token, expires_in, obtained_at: Date.now() };
 
-    res.send(`✅ OAuth successful! Token stored for session ${tokenKey}. Ready for /api/stores.`);
+    // ✅ Redirect user to index.html with short success flag
+    res.redirect(`/?oauth_success=true`);
   } catch (err) {
     handleOAuthError(err, res);
   }

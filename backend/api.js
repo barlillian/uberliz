@@ -7,13 +7,13 @@ const { UBER_API_BASE_URL } = require("./config");
 const { INTEGRATOR_BRAND_ID = "app-brand-1jj9th32" } = process.env;
 
 // --------------------
-// Helper: After calling GET Stores trigger mapStore and save storeId in InternalStoreMap
+// Helper: map store into internalStoreMap
 // --------------------
 function mapStore(tokenKey, store) {
-  const storeId = store.id; // Uber's authoritative store ID
+  const storeId = store.id;
+  if (!storeId) throw new Error("Store ID missing from Uber response");
 
-  // Generate merchant_store_id for payload
-  const merchantStoreId = `${store.name.replace(/\s+/g, "_")}-${storeId.slice(0,8)}`;
+  const merchantStoreId = `${store.name.replace(/\s+/g, "_")}-${storeId.slice(0, 8)}`;
 
   storage.internalStoreMap[storeId] = {
     tokenKey,
@@ -22,7 +22,9 @@ function mapStore(tokenKey, store) {
     merchant_store_id: merchantStoreId
   };
 
-  if (!storage.activationStatus[storeId]) storage.activationStatus[storeId] = "pending";
+  if (!storage.activationStatus[storeId]) {
+    storage.activationStatus[storeId] = "pending";
+  }
 
   return {
     ...store,
@@ -49,23 +51,28 @@ function sendApiError(res, status, uberData, nextAction) {
 router.get("/stores", async (req, res) => {
   try {
     const tokenKeys = Object.keys(storage.userTokens);
-    if (tokenKeys.length === 0) return res.status(400).send("⚠️ No authorized session. Complete OAuth first.");
-    const tokenKey = tokenKeys[0]; // single session for MVP
+    if (tokenKeys.length === 0) {
+      return res.status(400).send("⚠️ No authorized session. Complete OAuth first.");
+    }
+
+    const tokenKey = tokenKeys[tokenKeys.length - 1];
     const token = await oauth.getValidToken(tokenKey);
 
     const response = await axios.get(`${UBER_API_BASE_URL}/v1/delivery/stores`, {
       headers: { Authorization: `Bearer ${token}` },
-      params: {
-        next_page_token: req.query.next_page_token || null,
-        page_size: parseInt(req.query.page_size) || 50
-      }
+      params: { page_size: 50 }
     });
 
-    const stores = (response.data.data || []).map(store => mapStore(tokenKey, store));
+    const storesFromApi = response.data.stores || [];
+    const stores = storesFromApi.map(store => mapStore(tokenKey, store));
+
     storage.merchantStores[tokenKey] = stores;
 
+    console.log(`✅ /api/stores fetched ${stores.length} stores`);
     res.status(200).json(stores);
   } catch (err) {
+    console.error("❌ /api/stores error:", err.response?.data || err.message);
+
     const status = err.response?.status || 500;
     const uberData = err.response?.data || {};
     let nextAction = "Check request and retry";
@@ -73,8 +80,7 @@ router.get("/stores", async (req, res) => {
     switch (status) {
       case 400: nextAction = "Check request parameters"; break;
       case 401: nextAction = "Token may be expired or lacks eats.pos_provisioning scope"; break;
-      case 404: nextAction = "?? Please pass a valid identifier for the store"; break;
-      case 500: nextAction = "Retry later or contact Uber support"; break;
+      case 404: nextAction = "Check store_id"; break;
     }
 
     sendApiError(res, status, uberData, nextAction);
@@ -86,10 +92,35 @@ router.get("/stores", async (req, res) => {
 // --------------------
 router.post("/stores/:store_id/activate", async (req, res) => {
   const storeId = req.params.store_id;
-  const storeMapping = storage.internalStoreMap[storeId];
+  console.log("🔹 /api/stores/:store_id/activate hit for:", storeId);
 
-  if (!storeMapping)
-    return sendApiError(res, 404, { message: "Store mapping not found" }, "Ensure store_id is valid and fetched from /api/stores");
+  let storeMapping = storage.internalStoreMap[storeId];
+
+  if (!storeMapping) {
+    const tokenKeys = Object.keys(storage.userTokens);
+    for (const key of tokenKeys) {
+      const stores = storage.merchantStores[key] || [];
+      const found = stores.find(s => s.id === storeId);
+      if (found) {
+        storeMapping = storage.internalStoreMap[storeId] = {
+          tokenKey: key,
+          name: found.name,
+          address: found.location?.street_address_line_one,
+          merchant_store_id: `${found.name.replace(/\s+/g, "_")}-${storeId.slice(0, 8)}`
+        };
+        break;
+      }
+    }
+  }
+
+  if (!storeMapping) {
+    return sendApiError(
+      res,
+      404,
+      { message: "Store mapping not found" },
+      "Ensure store_id is valid and fetched from /api/stores"
+    );
+  }
 
   const tokenKey = storeMapping.tokenKey;
 
@@ -102,11 +133,15 @@ router.post("/stores/:store_id/activate", async (req, res) => {
         allow_special_instruction_requests: false
       },
       integrator_brand_id: INTEGRATOR_BRAND_ID,
-      integrator_store_id: `app-${storeId}`,          // internal app store ID
+      integrator_store_id: `app-${storeId}`,
       is_order_manager: true,
-      merchant_store_id: storeMapping.merchant_store_id, // use the generated ID here
+      merchant_store_id: storeMapping.merchant_store_id,
       require_manual_acceptance: false,
-      store_configuration_data: JSON.stringify({ store_type: "restaurant", accepts_pickup: true, accepts_delivery: true }),
+      store_configuration_data: JSON.stringify({
+        store_type: "restaurant",
+        accepts_pickup: true,
+        accepts_delivery: true
+      }),
       webhooks_config: {
         order_release_webhooks: { is_enabled: true },
         schedule_order_webhooks: { is_enabled: true },
@@ -119,15 +154,15 @@ router.post("/stores/:store_id/activate", async (req, res) => {
       headers: { Authorization: `Bearer ${token}` }
     });
 
-    // Keep status as pending until webhook arrives
     storage.activationStatus[storeId] = "pending";
 
     res.status(200).json({
       status: 200,
-      message: `Store ${storeMapping.name} Activation requested! Waiting for Uber confirmation...`
+      message: `Store ${storeMapping.name} activation requested! Waiting for Uber confirmation...`
     });
-
   } catch (err) {
+    console.error("❌ /api/stores/:store_id/activate error:", err.response?.data || err.message);
+
     const status = err.response?.status || 500;
     const uberData = err.response?.data || {};
     let nextAction = "Check request and retry";
@@ -136,7 +171,6 @@ router.post("/stores/:store_id/activate", async (req, res) => {
       case 400: nextAction = "Check activation payload"; break;
       case 401: nextAction = "Token may be expired or lacks eats.pos_provisioning scope"; break;
       case 404: nextAction = "Ensure store_id is valid"; break;
-      case 500: nextAction = "Retry later or contact Uber support"; break;
     }
 
     sendApiError(res, status, uberData, nextAction);
@@ -144,10 +178,19 @@ router.post("/stores/:store_id/activate", async (req, res) => {
 });
 
 // --------------------
-// GET /api/debug/events
+// Debug routes
 // --------------------
 router.get("/debug/events", (req, res) => {
   res.status(200).json(storage.events.map(e => ({ event: e })));
+});
+
+router.get("/debug/tokens", (req, res) => {
+  res.json(storage.userTokens);
+});
+
+router.get("/debug/clear", (req, res) => {
+  storage.clearAll();
+  res.send("✅ Storage cleared. Starting fresh.");
 });
 
 module.exports = router;

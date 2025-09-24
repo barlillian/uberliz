@@ -15,7 +15,7 @@ connectBtn.addEventListener('click', () => {
 });
 
 // --------------------
-// Show / hide loading for global messages
+// Show / hide loading
 // --------------------
 function showLoading(msg = '⏳ Loading...') {
   loading.textContent = msg;
@@ -58,7 +58,7 @@ function renderStores() {
     li.classList.add('store-item');
 
     const infoSpan = document.createElement('span');
-    infoSpan.textContent = `${store.name} | Uber ID: ${store.store_id}`; // Only show Uber info
+    infoSpan.textContent = `${store.name} | Uber ID: ${store.id}`;
     li.appendChild(infoSpan);
 
     if (store.isActivated) {
@@ -66,8 +66,7 @@ function renderStores() {
       statusSpan.textContent = ' ✅ Activated';
       statusSpan.classList.add('activated');
       li.appendChild(statusSpan);
-    } else if (loadingStores[store.store_id]) {
-      // Show per-store activating message
+    } else if (loadingStores[store.id]) {
       const statusSpan = document.createElement('span');
       statusSpan.textContent = `⏳ Store Activating...! Waiting for Uber confirmation`;
       statusSpan.classList.add('activating');
@@ -76,7 +75,8 @@ function renderStores() {
       const btn = document.createElement('button');
       btn.textContent = 'Link Store with App';
       btn.classList.add('btn-small');
-      btn.onclick = () => activateStore(store.store_id, btn);
+      btn.disabled = !store.id; // disable if no store ID
+      btn.onclick = () => activateStore(store.id, btn);
       li.appendChild(btn);
     }
 
@@ -88,9 +88,11 @@ function renderStores() {
 // Step 3: Activate store
 // --------------------
 async function activateStore(storeId, btnElement) {
+  if (!storeId) return;
+
   btnElement.disabled = true;
-  loadingStores[storeId] = true; // Mark store as activating
-  renderStores(); // Update UI immediately
+  loadingStores[storeId] = true;
+  renderStores();
 
   try {
     const res = await fetch(`/api/stores/${storeId}/activate`, { method: 'POST' });
@@ -104,7 +106,7 @@ async function activateStore(storeId, btnElement) {
     alert(`✅ Activation requested for store ${storeId}. Waiting for Uber confirmation...`);
   } catch (err) {
     alert(`Error activating store:\n${err.message}`);
-    delete loadingStores[storeId]; // Remove activating state on error
+    delete loadingStores[storeId];
   } finally {
     btnElement.disabled = false;
     renderStores();
@@ -117,26 +119,22 @@ async function activateStore(storeId, btnElement) {
 const socket = io();
 
 socket.on("storeProvisioned", ({ storeId }) => {
-  const store = stores.find(s => s.store_id === storeId);
+  const store = stores.find(s => s.id === storeId);
   if (store) {
     store.isActivated = true;
-    delete loadingStores[storeId]; // Stop loading when Uber confirms
+    delete loadingStores[storeId];
     renderStores();
     highlightStore(storeId);
-  } else {
-    fetchStores();
-  }
+  } else fetchStores();
 });
 
 socket.on("storeDeprovisioned", ({ storeId }) => {
-  const store = stores.find(s => s.store_id === storeId);
+  const store = stores.find(s => s.id === storeId);
   if (store) {
     store.isActivated = false;
     renderStores();
     highlightStore(storeId);
-  } else {
-    fetchStores();
-  }
+  } else fetchStores();
 });
 
 socket.on("webhookEvent", (event) => {
@@ -145,6 +143,7 @@ socket.on("webhookEvent", (event) => {
   renderEvents();
 });
 
+// Highlight a store for a short time
 function highlightStore(storeId) {
   const liElements = storeList.querySelectorAll('li');
   liElements.forEach(li => {
@@ -155,6 +154,7 @@ function highlightStore(storeId) {
   });
 }
 
+// Render webhook events
 function renderEvents() {
   eventList.innerHTML = '';
   events.forEach(e => {
@@ -167,6 +167,14 @@ function renderEvents() {
 }
 
 // --------------------
-// Initial fetch
+// Step 5: Auto-fetch after OAuth success
 // --------------------
-fetchStores();
+window.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const oauthSuccess = urlParams.get('oauth_success');
+
+  if (oauthSuccess === 'true') fetchStores();
+
+  const cleanUrl = window.location.origin + window.location.pathname;
+  window.history.replaceState(null, '', cleanUrl);
+});
