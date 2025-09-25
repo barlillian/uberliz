@@ -16,8 +16,9 @@ function verifyUberSignature(req) {
   const signature = req.headers["x-uber-signature"];
   if (!signature) return false;
 
+  // Use separate webhook secret from .env
   const computed = crypto
-    .createHmac("sha256", process.env.UBER_CLIENT_SECRET)
+    .createHmac("sha256", process.env.WEBHOOK_SECRET)
     .update(req.rawBody || "")
     .digest("hex");
 
