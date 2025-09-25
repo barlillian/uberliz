@@ -33,7 +33,7 @@ function mapStore(tokenKey, store) {
 }
 
 // --------------------
-// Helper: send formatted API error
+// Helper: send formatted API error (always JSON)
 // --------------------
 function sendApiError(res, status, uberData, nextAction) {
   res.status(status).json({
@@ -52,7 +52,10 @@ router.get("/stores", async (req, res) => {
   try {
     const tokenKeys = Object.keys(storage.userTokens);
     if (tokenKeys.length === 0) {
-      return res.status(400).send("⚠️ No authorized session. Complete OAuth first.");
+      return res.status(400).json({
+        status: 400,
+        message: "⚠️ No authorized session. Complete OAuth first."
+      });
     }
 
     const tokenKey = tokenKeys[tokenKeys.length - 1];
@@ -83,6 +86,7 @@ router.get("/stores", async (req, res) => {
       case 404: nextAction = "Check store_id"; break;
     }
 
+    // Always respond with JSON, even on error
     sendApiError(res, status, uberData, nextAction);
   }
 });
