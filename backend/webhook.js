@@ -2,7 +2,7 @@ const express = require("express");
 const crypto = require("crypto");
 const router = express.Router();
 const storage = require("./storage");
-const { getStorePosData } = require("./api");
+const apiRouter = require("./api"); // Import router to access getStorePosData
 require("dotenv").config();
 
 // --------------------
@@ -31,7 +31,7 @@ function verifyUberSignature(req) {
 // Webhook endpoint
 // --------------------
 router.post("/", async (req, res) => {
-  const io = req.app.get("io"); // Socket.IO instance
+  const io = req.app.get("io");
 
   if (!verifyUberSignature(req)) {
     console.error("❌ Invalid webhook signature", req.body);
@@ -43,30 +43,29 @@ router.post("/", async (req, res) => {
 
   console.log("📩 Received Uber webhook:", event);
 
-  // ✅ Log latest 50 events
+  // Log latest 50 events
   const logEntry = {
     timestamp: new Date().toISOString(),
     type: event.event_type,
     storeId: storeId || null,
     raw: event
   };
-  storage.events.unshift(logEntry); // latest on top
+  storage.events.unshift(logEntry);
   if (storage.events.length > 50) storage.events.pop();
 
-  // Emit real-time event to frontend
   if (io) io.emit("webhookEvent", logEntry);
 
-  // ✅ Only update activationStatus for relevant events
+  // Only update activationStatus for relevant events
   if (["store.provisioned", "store.deprovisioned"].includes(event.event_type) && storeId) {
     try {
-      // Use backend API helper to call GET /get_pos_data/:store_id (client credentials)
-      const posData = await getStorePosData(storeId);
+      console.log(`📡 Webhook triggering client credentials fetch for store ${storeId}`);
+      const posData = await apiRouter.getStorePosData(storeId);
       storage.activationStatus[storeId] = posData.integration_enabled ? "activated" : "deactivated";
-      console.log(`🔄 Updated activationStatus from GET /get_pos_data for store ${storeId}:`, storage.activationStatus[storeId]);
+      console.log(`🔄 Updated activationStatus for store ${storeId}:`, storage.activationStatus[storeId]);
 
       if (io) io.emit("storeStatusUpdated", { storeId, status: storage.activationStatus[storeId] });
     } catch (err) {
-      console.error(`❌ Failed to update store status from GET /get_pos_data for store ${storeId}`, err.message);
+      console.error(`❌ Failed to update store status for store ${storeId} via client credentials`, err.message);
     }
   }
 

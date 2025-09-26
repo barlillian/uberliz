@@ -46,6 +46,21 @@ function sendApiError(res, status, uberData, nextAction) {
 }
 
 // --------------------
+// Helper: fetch POS data via client credentials
+// --------------------
+async function getStorePosData(storeId) {
+  const token = await oauth.getClientToken();
+  console.log(`📡 Fetching POS data for store ${storeId} using client credentials`);
+
+  const response = await axios.get(`${UBER_API_BASE_URL}/v1/eats/stores/${storeId}/pos_data`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  console.log(`✅ Received POS data for store ${storeId}: integration_enabled=${response.data.integration_enabled}`);
+  return response.data;
+}
+
+// --------------------
 // GET /api/stores
 // --------------------
 router.get("/stores", async (req, res) => {
@@ -188,10 +203,9 @@ router.get("/get_pos_data/:store_id", async (req, res) => {
   if (!storeId) return res.status(400).json({ status: 400, message: "store_id required" });
 
   try {
-    const posData = await getPosDataByClient(storeId); // uses client credentials
+    const posData = await getStorePosData(storeId);
     const isActivated = posData.integration_enabled === true;
 
-    // Update internal store map
     if (storage.internalStoreMap[storeId]) {
       storage.activationStatus[storeId] = isActivated ? "activated" : "deactivated";
     }
@@ -223,5 +237,8 @@ router.get("/debug/clear", (req, res) => {
   storage.clearAll();
   res.send("✅ Storage cleared. Starting fresh.");
 });
+
+// Attach helper to router so it can be imported in webhook.js
+router.getStorePosData = getStorePosData;
 
 module.exports = router;
