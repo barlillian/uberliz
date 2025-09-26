@@ -70,6 +70,9 @@ router.post("/", (req, res) => {
     io.emit("webhookEvent", logEntry);
   }
 
+  // 👇 Add this console log so you know you responded 200
+  console.log("✅ Responded 200 to Uber webhook:", event.event_type, "for store:", storeId);
+
   return res.sendStatus(200);
 });
 

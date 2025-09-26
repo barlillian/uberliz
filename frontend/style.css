@@ -64,16 +64,15 @@ hr {
   margin-left: auto;
 }
 
-/* Details toggle button: underline text, no background */
+/* Details toggle button */
 .details-btn {
   background: none;
   border: none;
   color: #47B275;
   cursor: pointer;
   text-decoration: underline;
-  font-size: 13px; /* smaller font for details */
+  font-size: 13px;
   padding: 0;
-  margin-left: 6px; /* small spacing from store name */
 }
 
 .details-btn:hover {
@@ -89,14 +88,14 @@ hr {
 .store-item {
   display: flex;
   align-items: center;
-  justify-content: space-between; /* store name left, actions right */
+  justify-content: space-between;
   padding: 10px 13px;
   margin-bottom: 6px;
   border: 1px solid #ddd;
   border-radius: 8px;
   transition: all 0.2s ease;
-  background-color: #fafafa; /* store container background */
-  flex-wrap: wrap; /* allow details box below */
+  background-color: #fafafa;
+  flex-wrap: wrap;
 }
 
 .store-item span {
@@ -117,7 +116,7 @@ hr {
 .store-details {
   width: 100%;
   margin-top: 6px;
-  display: none; /* hidden initially */
+  display: none;
 }
 
 .details-box {
@@ -125,8 +124,8 @@ hr {
   border: 1px solid #ddd;
   border-radius: 6px;
   line-height: 1.4;
-  background-color: #fdfbfb; /* lighter than store-item background */
-  font-size: 13px; /* smaller text */
+  background-color: #fdfbfb;
+  font-size: 13px;
   position: relative;
   margin-top: 4px;
 }
@@ -146,11 +145,25 @@ hr {
 }
 
 /* Webhook events list */
-#eventList li {
-  padding: 6px 8px;
-  border-bottom: 1px solid #eee;
-  font-size: 13px;
-  color: #555;
+.event-item {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background-color: #fafafa;
+}
+
+.event-item.highlight {
+  background-color: #fff8c4;
+  border-color: #ffeb3b;
+}
+
+.event-details {
+  width: 100%;
+  margin-top: 6px;
+  display: none;
 }
 
 /* Loading Spinner */

@@ -49,7 +49,7 @@ async function fetchStores() {
 }
 
 // --------------------
-// Helper: format store details recursively
+// Helper: format details recursively
 // --------------------
 function formatStoreDetails(obj, prefix = '') {
   let html = '';
@@ -67,7 +67,9 @@ function formatStoreDetails(obj, prefix = '') {
   return html;
 }
 
+// --------------------
 // Toggle store details
+// --------------------
 function toggleStoreDetails(storeId, store) {
   const detailsDiv = document.getElementById(`details-${storeId}`);
   if (!detailsDiv) return;
@@ -101,7 +103,9 @@ function toggleStoreDetails(storeId, store) {
   }
 }
 
+// --------------------
 // Render store list
+// --------------------
 function renderStores() {
   storeList.innerHTML = '';
   stores.forEach(store => {
@@ -157,7 +161,7 @@ function renderStores() {
     // Hidden container for details
     const detailsDiv = document.createElement('div');
     detailsDiv.id = `details-${store.id}`;
-    detailsDiv.classList.add('store-details'); // initially hidden via display:none
+    detailsDiv.classList.add('store-details');
     li.appendChild(detailsDiv);
 
     storeList.appendChild(li);
@@ -216,12 +220,15 @@ socket.on("storeDeprovisioned", ({ storeId }) => {
 });
 
 socket.on("webhookEvent", (event) => {
-  events.unshift(event);
+  events.unshift(event); // latest on top
   if (events.length > 50) events.pop();
   renderEvents();
+  highlightEvent(0); // highlight newest (at index 0)
 });
 
-// Highlight a store briefly
+// --------------------
+// Highlight helpers
+// --------------------
 function highlightStore(storeId) {
   const liElements = storeList.querySelectorAll('li');
   liElements.forEach(li => {
@@ -232,14 +239,85 @@ function highlightStore(storeId) {
   });
 }
 
+function highlightEvent(index) {
+  const liElements = eventList.querySelectorAll('li');
+  if (liElements[index]) {
+    liElements[index].classList.add('highlight');
+    setTimeout(() => liElements[index].classList.remove('highlight'), 2000);
+  }
+}
+
+// --------------------
+// Toggle event details
+// --------------------
+function toggleEventDetails(eventId, eventData) {
+  const detailsDiv = document.getElementById(`event-details-${eventId}`);
+  if (!detailsDiv) return;
+
+  if (detailsDiv.style.display === 'block') {
+    detailsDiv.style.display = 'none';
+    detailsDiv.innerHTML = '';
+  } else {
+    detailsDiv.style.display = 'block';
+
+    const box = document.createElement('div');
+    box.classList.add('details-box');
+
+    const closeBtn = document.createElement('span');
+    closeBtn.classList.add('close-btn');
+    closeBtn.textContent = 'X';
+    closeBtn.addEventListener('click', () => {
+      detailsDiv.style.display = 'none';
+      detailsDiv.innerHTML = '';
+    });
+    box.appendChild(closeBtn);
+
+    const content = document.createElement('div');
+    content.classList.add('details-content');
+    content.innerHTML = formatStoreDetails(eventData.raw || eventData);
+    box.appendChild(content);
+
+    detailsDiv.appendChild(box);
+  }
+}
+
+// --------------------
 // Render webhook events
+// --------------------
 function renderEvents() {
   eventList.innerHTML = '';
-  events.forEach(e => {
+  events.forEach((e, idx) => {
     const timestamp = e.timestamp || new Date().toISOString();
     const formattedTime = new Date(timestamp).toLocaleString();
+
     const li = document.createElement('li');
-    li.textContent = `[${formattedTime}] ${e.type} | Store ID: ${e.storeId}`;
+    li.classList.add('event-item');
+
+    // Left container: info + [+Details]
+    const leftDiv = document.createElement('div');
+    leftDiv.style.display = 'flex';
+    leftDiv.style.alignItems = 'center';
+    leftDiv.style.gap = '6px';
+
+    const infoSpan = document.createElement('span');
+    const storeName = e.raw?.partner_store_id || e.storeId || '(unknown)';
+    infoSpan.innerHTML = `📩 [${formattedTime}] 🏬 <strong>${storeName}</strong> | ${e.type}`;
+    leftDiv.appendChild(infoSpan);
+
+    const detailsBtn = document.createElement('button');
+    detailsBtn.textContent = '[+Details]';
+    detailsBtn.classList.add('details-btn');
+    detailsBtn.addEventListener('click', () => toggleEventDetails(idx, e));
+    leftDiv.appendChild(detailsBtn);
+
+    li.appendChild(leftDiv);
+
+    // Hidden container for details
+    const detailsDiv = document.createElement('div');
+    detailsDiv.id = `event-details-${idx}`;
+    detailsDiv.classList.add('event-details');
+    li.appendChild(detailsDiv);
+
     eventList.appendChild(li);
   });
 }
