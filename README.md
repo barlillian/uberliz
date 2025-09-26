@@ -10,65 +10,97 @@ This is a **minimal viable product (MVP)** demonstrating the Uber Eats Integrati
 
 ---
 
+**Brief Full Integration Journey Workflow:** [View Lucidchart Diagram](https://lucid.app/lucidchart/9ba4efa2-d7ea-4072-a5b6-03264c81cbe2/edit?invitationId=inv_ffb6cfa4-ab55-4434-b9c7-dffcf0a19bcb&page=0_0#)
+
+---
+
 ## Features / MVP Scope
 
 ### 1️⃣ OAuth Authorization & Token Exchange
 - **Flow:** (Authorization Code Flow)
-  1. Merchant clicks the button "Connect with Uber Eats" → triggers my app endpoint `/oauth/login`
-  2. My app redirects merchant to Uber OAuth login:`GET https://auth.uber.com/oauth/v2/authorize`
-  3. Merchant logs in Uber page and consent → Uber redirects merchant back to my app `/oauth/redirect` with an `authorization_code`
-  4. My app backend calls Uber Token endpoint: POST https://auth.uber.com/oauth/v2/token to exchange the `authorization_code` for `User Access Token` and `refresh_token`
-  5. Tokens are stored in-memory for this session
-- **UI** "Connect with Uber Eats" button
+  1. Merchant clicks **"Connect with Uber Eats"** → triggers app endpoint `/oauth/login`
+  2. App redirects merchant to Uber OAuth:  
+     `GET https://auth.uber.com/oauth/v2/authorize`
+  3. Merchant logs in and consents → Uber redirects back to app `/oauth/redirect?code=...`
+  4. Backend exchanges `authorization_code` for **Access Token** + **Refresh Token** via:  
+     `POST https://auth.uber.com/oauth/v2/token`
+  5. Tokens are stored **in-memory** for this session
+- **UI:** "Connect with Uber Eats" button  
 
-### 2️⃣ Retrieve Merchant's all Stores
+---
+
+### 2️⃣ Retrieve Merchant’s Stores
 - **Flow:**
-  1. On page load (After `/oauth/redirect`), my frontend automatically triggers my app `/api/stores`
-  2. My app backend calls Uber Get Stores API: `GET https://api.uber.com/v1/delivery/stores` using the stored access token
-  3. Response is mapped and stored in-memory (internalStoreMap, merchantStores) and returned to frontend 
-- **UI:** Frontend automatically displays list of merchant's stores. Stores not yet activated show a "Link Store with App" button
+  1. After OAuth success, frontend automatically calls `/api/stores`
+  2. Backend calls Uber API:  
+     `GET https://api.uber.com/v1/delivery/stores` (using stored user token)
+  3. Response is mapped into local memory (`internalStoreMap`, `merchantStores`) and sent to frontend
+  4. Each store is also checked against `activationStatus` (from previous webhooks or `/get_pos_data`)
+- **UI:**  
+  - Frontend displays list of stores  
+  - Stores not yet activated show **👉 Link App to Store** button  
 
-### 3️⃣ Activate Store Integration (Link Application to Store)
+---
+
+### 3️⃣ Activate Store Integration (Link App to Store)
 - **Flow:** 
-  1. Merchant clicks "Link Store with App" button → triggers my app endpoint `/api/stores/:store_id/activate`
-  2. My app backend calls Uber Integration Activation API: `POST https://api.uber.com/v1/eats/stores/{store_id}/pos_data` with my client ID to link the store
-  3. Backend sets `activationStatus[storeId] = "pending"` in memory. The store is not yet activated until webhook confirmation arrives 
-- **UI:** Frontend shows alert "Activation requested! Waiting for Uber confirmation..." in the Your Stores section; the store remains in this state until the webhook is received
+  1. Merchant clicks **"Link App to Store"** → frontend calls `/api/post_pos_data/:store_id`
+  2. Backend calls Uber API:  
+     `POST https://api.uber.com/v1/eats/stores/{store_id}/pos_data` with integration payload
+  3. Backend sets `activationStatus[storeId] = "pending"` in memory
+  4. Store is not fully activated until Uber webhook confirms it
+- **UI:**  
+  - Store shows **⏳ Awaiting Uber approval** until webhook arrives to trigger next step for integration status confirm  
+  - No manual refresh required  
+
+---
 
 ### 4️⃣ Webhook Handling
 - **Flow:**
-  1. Uber confirms store activation by sending webhook `store.provisioned` → triggers my app endpoint `/webhooks/store-provisioned` 
-  2. My backend verifies Uber signature, updates `activationStatus[storeId] = 'activated"` → stores the webhook event in memory → emits real-time Socket.IO events to frontend → returns 200 response to Uber
-  3. Frontend receives the Socket.IO event → updates Your Stores section to show "✅ Activated"
-  4. Frontend logs the webhook event in "Webhook Events (last 50)" section.
-- **UI:** Real-time updates:
-  1. Store status changes from "Activation requested! Waiting for Uber confirmation..." → "✅ Activated" in Your Stores section
-  2. Webhook events appear live in the Webhook Events section
-- **Edge Case:**
-  1. If the webhook never arrives (activation fails or network issue), the store remains in “Activation requested! Waiting for Uber confirmation…” state
-  2. No automatic timeout or failure handling is implemented in this MVP 
-  
----
-
-## Interview Flow & Notes
-
-**Full Integration Journey Workflow:** [View Lucidchart Diagram](https://lucid.app/lucidchart/9ba4efa2-d7ea-4072-a5b6-03264c81cbe2/edit?invitationId=inv_ffb6cfa4-ab55-4434-b9c7-dffcf0a19bcb&page=0_0#)
-
-### Merchant Flow
-1. Merchant clicks "Connect with Uber Eats" → Uber OAuth login → returns authorization_code.
-2. App backend exchanges authorization_code at `/oauth/v2/token` for access/refresh tokens
-3. App call Get Stores endpoint with access token to fetch merchant all stores → display all stores in UI.
-4. Merchant clicks **Link Store with App** on a selected store → App calls Integration Activation API → triggers webhook on success
-5. App's Webhook endpoint processes event (`store.provisioned`) → App's UI shows “Status: ✅ Store Activated”.
+  1. Uber sends webhooks (`store.provisioned` / `store.deprovisioned`) to app endpoint `/webhooks`
+  2. Backend verifies Uber HMAC signature (`x-uber-signature`)
+  3. Event is logged in memory (`storage.events`, capped at 50)  
+     and broadcasted to frontend via **Socket.IO**
+  4. **Provisioned case:**  
+     - Backend calls `GET /v1/eats/stores/{store_id}/pos_data` (client credentials)  
+     - Confirms `integration_enabled === true`  
+     - Updates `activationStatus[storeId] = "activated"`  
+  5. **Deprovisioned case:**  
+     - Backend directly sets `activationStatus[storeId] = "deactivated"`  
+     - Skips extra API call (since Uber’s deprovisioned event is final)
+  6. Frontend receives Socket.IO update → updates store status in UI
+- **UI:**  
+  - Store flips live between:  
+    - "⏳ Awaiting Uber approval" → "✅ Activated" (on provisioned + confirmed)  
+    - "✅ Activated" → "👉 Link App to Store" (on deprovisioned)  
+  - Webhook Events panel updates live with last 50 events  
 
 ---
 
-## Tech Stack
-- **Backend:** Node.js, Express
-- **Frontend:** HTML, CSS, Vanilla JS, Socket.IO
-- **Authentication:** OAuth2 (Authorization Code Flow)
-- **In-memory storage:** Stores tokens, store mapping, activation status, webhook events
-- **Real-time updates:** Socket.IO broadcasts webhook events to frontend
+### 5️⃣ Real-Time Dashboard
+- **Stores Section:**  
+  - Shows each store with its current activation status  
+  - Updates instantly on webhook events via Socket.IO  
+- **Webhook Events Section:**  
+  - Displays a live log of the last 50 webhook payloads  
+  - Expandable `[+Details]` view for inspecting raw event data  
+
+---
+
+### 6️⃣ Edge Cases / Notes
+- **Provisioned webhook** can be triggered by both `POST /pos_data` or `PATCH /pos_data` → that’s why backend confirms with `GET /pos_data` before marking "✅ Activated".  
+- **Deprovisioned webhook** is reliable so directly marked "👉 Link App to Store".   
+- **Events & tokens** are stored **in-memory only** (lost on server restart).  
+- **No retry/timeout handling** for failed activations in this MVP.  
+
+---
+
+## 🛠️ Tech Stack
+- **Backend:** Node.js, Express  
+- **Frontend:** HTML, CSS, Vanilla JS, Socket.IO  
+- **Authentication:** OAuth2 (Authorization Code Flow)  
+- **In-memory storage:** Tokens, store mapping, activation status, webhook events  
+- **Real-time updates:** Socket.IO broadcasts webhook events to frontend  
 
 ---
 
