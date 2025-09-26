@@ -11,8 +11,8 @@ body {
   margin: 40px auto;
   padding: 20px;
   background-color: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border-radius: 13px;
+  box-shadow: 0 4px 13px rgba(0,0,0,0.1);
 }
 
 h1, h2 {
@@ -26,10 +26,10 @@ hr {
 }
 
 .btn {
-  background-color: #1fbad6;
+  background-color: #47B275;
   color: #fff;
   border: none;
-  padding: 12px 20px;
+  padding: 13px 20px;
   border-radius: 8px;
   cursor: pointer;
   font-size: 16px;
@@ -37,14 +37,14 @@ hr {
 }
 
 .btn:hover {
-  background-color: #1596b0;
+  background-color: #47B275;
 }
 
 .btn-small {
-  background-color: #4caf50;
+  background-color: #47B275;
   color: #fff;
   border: none;
-  padding: 6px 12px;
+  padding: 6px 13px;
   border-radius: 6px;
   cursor: pointer;
   margin-left: 10px;
@@ -52,7 +52,32 @@ hr {
 }
 
 .btn-small:hover {
-  background-color: #388e3c;
+  background-color: #47B275;
+}
+
+/* Store actions container: inline buttons + responsive */
+.store-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+/* Details toggle button: underline text, no background */
+.details-btn {
+  background: none;
+  border: none;
+  color: #47B275;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 13px; /* smaller font for details */
+  padding: 0;
+  margin-left: 6px; /* small spacing from store name */
+}
+
+.details-btn:hover {
+  color: #b43595;
 }
 
 .list {
@@ -64,13 +89,14 @@ hr {
 .store-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
+  justify-content: space-between; /* store name left, actions right */
+  padding: 10px 13px;
   margin-bottom: 6px;
   border: 1px solid #ddd;
   border-radius: 8px;
   transition: all 0.2s ease;
-  background-color: #fafafa;
+  background-color: #fafafa; /* store container background */
+  flex-wrap: wrap; /* allow details box below */
 }
 
 .store-item span {
@@ -78,7 +104,7 @@ hr {
 }
 
 .store-item .activated {
-  color: #4caf50;
+  color: #47B275;
   font-weight: bold;
 }
 
@@ -87,6 +113,39 @@ hr {
   border-color: #ffeb3b;
 }
 
+/* Store details container */
+.store-details {
+  width: 100%;
+  margin-top: 6px;
+  display: none; /* hidden initially */
+}
+
+.details-box {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  line-height: 1.4;
+  background-color: #fdfbfb; /* lighter than store-item background */
+  font-size: 13px; /* smaller text */
+  position: relative;
+  margin-top: 4px;
+}
+
+.details-box .close-btn {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  color: #888;
+  font-size: 13px;
+}
+
+.details-box .close-btn:hover {
+  color: #555;
+}
+
+/* Webhook events list */
 #eventList li {
   padding: 6px 8px;
   border-bottom: 1px solid #eee;
@@ -97,9 +156,10 @@ hr {
 /* Loading Spinner */
 .loading {
   font-weight: bold;
-  color: #1fbad6;
-  margin: 12px 0;
+  color: #47B275;
+  margin: 13px 0;
 }
+
 .hidden {
   display: none;
 }

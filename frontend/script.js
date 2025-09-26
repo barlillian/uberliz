@@ -5,7 +5,7 @@ const loading = document.getElementById('loading');
 
 let stores = [];
 let events = [];
-let loadingStores = {}; // Track which stores are in “activating” state
+let loadingStores = {}; // Track activating state
 
 // --------------------
 // Step 1: OAuth login
@@ -49,36 +49,116 @@ async function fetchStores() {
 }
 
 // --------------------
-// Render store list
+// Helper: format store details recursively
 // --------------------
+function formatStoreDetails(obj, prefix = '') {
+  let html = '';
+  for (const key in obj) {
+    if (!obj.hasOwnProperty(key)) continue;
+    const value = obj[key];
+    const label = prefix ? `${prefix} → ${key}` : key;
+
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      html += formatStoreDetails(value, label);
+    } else {
+      html += `<strong>${label}:</strong> ${value !== null && value !== undefined ? value : '-'}<br>`;
+    }
+  }
+  return html;
+}
+
+// Toggle store details
+function toggleStoreDetails(storeId, store) {
+  const detailsDiv = document.getElementById(`details-${storeId}`);
+  if (!detailsDiv) return;
+
+  if (detailsDiv.style.display === 'block') {
+    detailsDiv.style.display = 'none'; // hide
+    detailsDiv.innerHTML = '';
+  } else {
+    detailsDiv.style.display = 'block'; // show
+    const box = document.createElement('div');
+    box.classList.add('details-box');
+
+    // Close button
+    const closeBtn = document.createElement('span');
+    closeBtn.classList.add('close-btn');
+    closeBtn.textContent = 'X';
+    closeBtn.addEventListener('click', () => {
+      detailsDiv.style.display = 'none';
+      detailsDiv.innerHTML = '';
+    });
+
+    box.appendChild(closeBtn);
+
+    // Content
+    const content = document.createElement('div');
+    content.classList.add('details-content');
+    content.innerHTML = formatStoreDetails(store);
+    box.appendChild(content);
+
+    detailsDiv.appendChild(box);
+  }
+}
+
+// Render store list
 function renderStores() {
   storeList.innerHTML = '';
   stores.forEach(store => {
     const li = document.createElement('li');
     li.classList.add('store-item');
 
-    const infoSpan = document.createElement('span');
-    infoSpan.textContent = `${store.name} | Uber ID: ${store.id}`;
-    li.appendChild(infoSpan);
+    // Left container: name + [+Details]
+    const leftDiv = document.createElement('div');
+    leftDiv.style.display = 'flex';
+    leftDiv.style.alignItems = 'center';
+    leftDiv.style.gap = '6px';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.innerHTML = `🏬 <strong>${store.name}</strong>`;
+    leftDiv.appendChild(nameSpan);
+
+    const detailsBtn = document.createElement('button');
+    detailsBtn.textContent = '[+Details]';
+    detailsBtn.classList.add('details-btn');
+    detailsBtn.addEventListener('click', () => toggleStoreDetails(store.id, store));
+    leftDiv.appendChild(detailsBtn);
+
+    li.appendChild(leftDiv);
+
+    // Right container: Link button / status
+    const rightDiv = document.createElement('div');
+    rightDiv.style.marginLeft = 'auto';
+    rightDiv.style.display = 'flex';
+    rightDiv.style.alignItems = 'center';
+    rightDiv.style.gap = '8px';
 
     if (store.isActivated) {
       const statusSpan = document.createElement('span');
-      statusSpan.textContent = ' ✅ Activated';
+      statusSpan.textContent = '✅ Activated';
       statusSpan.classList.add('activated');
-      li.appendChild(statusSpan);
+      rightDiv.appendChild(statusSpan);
     } else if (loadingStores[store.id]) {
       const statusSpan = document.createElement('span');
-      statusSpan.textContent = `⏳ Store Activating...! Waiting for Uber confirmation`;
+      statusSpan.textContent = '⏳ Awaiting Uber approval';
       statusSpan.classList.add('activating');
-      li.appendChild(statusSpan);
+      rightDiv.appendChild(statusSpan);
     } else {
       const btn = document.createElement('button');
-      btn.textContent = 'Link Store with App';
+      btn.textContent = '👉🏻 Link App to Store';
       btn.classList.add('btn-small');
-      btn.disabled = !store.id; // disable if no store ID
+      btn.disabled = !store.id;
       btn.onclick = () => activateStore(store.id, btn);
-      li.appendChild(btn);
+      rightDiv.appendChild(btn);
     }
+
+    li.appendChild(rightDiv);
+
+    // Hidden container for details
+    const detailsDiv = document.createElement('div');
+    detailsDiv.id = `details-${store.id}`;
+    detailsDiv.classList.add('store-details'); // initially hidden via display:none
+    li.appendChild(detailsDiv);
 
     storeList.appendChild(li);
   });
@@ -102,8 +182,6 @@ async function activateStore(storeId, btnElement) {
       const msg = `Error ${data.status}: ${data.uber_message}\nNext Action: ${data.next_action}`;
       throw new Error(msg);
     }
-
-    alert(`✅ Activation requested for store ${storeId}. Waiting for Uber confirmation...`);
   } catch (err) {
     alert(`Error activating store:\n${err.message}`);
     delete loadingStores[storeId];
@@ -143,7 +221,7 @@ socket.on("webhookEvent", (event) => {
   renderEvents();
 });
 
-// Highlight a store for a short time
+// Highlight a store briefly
 function highlightStore(storeId) {
   const liElements = storeList.querySelectorAll('li');
   liElements.forEach(li => {
@@ -161,7 +239,7 @@ function renderEvents() {
     const timestamp = e.timestamp || new Date().toISOString();
     const formattedTime = new Date(timestamp).toLocaleString();
     const li = document.createElement('li');
-    li.textContent = `[${formattedTime}] ${e.type} | Store ID: ${e.storeId} | Payload: ${JSON.stringify(e.raw)}`;
+    li.textContent = `[${formattedTime}] ${e.type} | Store ID: ${e.storeId}`;
     eventList.appendChild(li);
   });
 }
