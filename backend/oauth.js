@@ -94,6 +94,36 @@ async function getValidToken(tokenKey) {
 }
 
 // --------------------
+// Helper: get client credential token (for GET /pos_data)
+// --------------------
+async function getClientToken() {
+  const now = Date.now();
+  const record = storage.clientToken || {};
+  if (record.access_token && now < record.expires_at - 60 * 1000) return record.access_token;
+
+  try {
+    const res = await axios.post(
+      "https://auth.uber.com/oauth/v2/token",
+      qs.stringify({
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        grant_type: "client_credentials",
+        scope: "eats.store"  // ✅ Correct scope for GET /pos_data
+      }),
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
+
+    const { access_token, expires_in } = res.data;
+    storage.clientToken = { access_token, expires_at: now + expires_in * 1000 };
+    console.log("🔑 Obtained new client credential token");
+    return access_token;
+  } catch (err) {
+    console.error("❌ Client credential token error:", err.response?.data || err.message);
+    throw err;
+  }
+}
+
+// --------------------
 // OAuth error handler
 // --------------------
 function handleOAuthError(err, res) {
@@ -111,5 +141,6 @@ function handleOAuthError(err, res) {
 }
 
 router.getValidToken = getValidToken;
+router.getClientToken = getClientToken;
 
 module.exports = router;

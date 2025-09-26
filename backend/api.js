@@ -86,17 +86,16 @@ router.get("/stores", async (req, res) => {
       case 404: nextAction = "Check store_id"; break;
     }
 
-    // Always respond with JSON, even on error
     sendApiError(res, status, uberData, nextAction);
   }
 });
 
 // --------------------
-// POST /api/stores/:store_id/activate
+// POST /post_pos_data/:store_id
 // --------------------
-router.post("/stores/:store_id/activate", async (req, res) => {
+router.post("/post_pos_data/:store_id", async (req, res) => {
   const storeId = req.params.store_id;
-  console.log("🔹 /api/stores/:store_id/activate hit for:", storeId);
+  console.log("🔹 /post_pos_data/:store_id hit for:", storeId);
 
   let storeMapping = storage.internalStoreMap[storeId];
 
@@ -165,7 +164,7 @@ router.post("/stores/:store_id/activate", async (req, res) => {
       message: `Store ${storeMapping.name} activation requested! Waiting for Uber confirmation...`
     });
   } catch (err) {
-    console.error("❌ /api/stores/:store_id/activate error:", err.response?.data || err.message);
+    console.error("❌ /post_pos_data/:store_id error:", err.response?.data || err.message);
 
     const status = err.response?.status || 500;
     const uberData = err.response?.data || {};
@@ -178,6 +177,34 @@ router.post("/stores/:store_id/activate", async (req, res) => {
     }
 
     sendApiError(res, status, uberData, nextAction);
+  }
+});
+
+// --------------------
+// GET /get_pos_data/:store_id
+// --------------------
+router.get("/get_pos_data/:store_id", async (req, res) => {
+  const storeId = req.params.store_id;
+  if (!storeId) return res.status(400).json({ status: 400, message: "store_id required" });
+
+  try {
+    const posData = await getPosDataByClient(storeId); // uses client credentials
+    const isActivated = posData.integration_enabled === true;
+
+    // Update internal store map
+    if (storage.internalStoreMap[storeId]) {
+      storage.activationStatus[storeId] = isActivated ? "activated" : "deactivated";
+    }
+
+    res.status(200).json({ storeId, isActivated });
+  } catch (err) {
+    const uberData = err.response?.data || { message: err.message };
+    res.status(err.response?.status || 500).json({
+      status: err.response?.status || 500,
+      uber_code: uberData.code || "unknown_error",
+      uber_message: `⚠️ ${uberData.message || uberData.error || "No message provided"}`,
+      next_action: "Check store_id and client credentials token"
+    });
   }
 });
 

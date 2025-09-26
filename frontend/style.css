@@ -107,11 +107,6 @@ hr {
   font-weight: bold;
 }
 
-.store-item.highlight {
-  background-color: #fff8c4;
-  border-color: #ffeb3b;
-}
-
 /* Store details container */
 .store-details {
   width: 100%;
@@ -153,11 +148,6 @@ hr {
   border: 1px solid #ddd;
   border-radius: 6px;
   background-color: #fafafa;
-}
-
-.event-item.highlight {
-  background-color: #fff8c4;
-  border-color: #ffeb3b;
 }
 
 .event-details {

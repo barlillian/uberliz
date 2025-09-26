@@ -75,14 +75,14 @@ function toggleStoreDetails(storeId, store) {
   if (!detailsDiv) return;
 
   if (detailsDiv.style.display === 'block') {
-    detailsDiv.style.display = 'none'; // hide
+    detailsDiv.style.display = 'none';
     detailsDiv.innerHTML = '';
   } else {
-    detailsDiv.style.display = 'block'; // show
+    detailsDiv.style.display = 'block';
+
     const box = document.createElement('div');
     box.classList.add('details-box');
 
-    // Close button
     const closeBtn = document.createElement('span');
     closeBtn.classList.add('close-btn');
     closeBtn.textContent = 'X';
@@ -93,7 +93,6 @@ function toggleStoreDetails(storeId, store) {
 
     box.appendChild(closeBtn);
 
-    // Content
     const content = document.createElement('div');
     content.classList.add('details-content');
     content.innerHTML = formatStoreDetails(store);
@@ -179,7 +178,7 @@ async function activateStore(storeId, btnElement) {
   renderStores();
 
   try {
-    const res = await fetch(`/api/stores/${storeId}/activate`, { method: 'POST' });
+    const res = await fetch(`/api/post_pos_data/${storeId}`, { method: 'POST' });
     const data = await res.json();
 
     if (!res.ok) {
@@ -200,52 +199,45 @@ async function activateStore(storeId, btnElement) {
 // --------------------
 const socket = io();
 
-socket.on("storeProvisioned", ({ storeId }) => {
-  const store = stores.find(s => s.id === storeId);
-  if (store) {
-    store.isActivated = true;
-    delete loadingStores[storeId];
-    renderStores();
-    highlightStore(storeId);
-  } else fetchStores();
+socket.on("storeProvisioned", async ({ storeId }) => {
+  if (!storeId) return;
+  try {
+    const res = await fetch(`/api/get_pos_data/${storeId}`);
+    const data = await res.json();
+    if (res.ok) {
+      const store = stores.find(s => s.id === storeId);
+      if (store) store.isActivated = data.isActivated;
+      renderStores();
+    } else {
+      console.error(`Error fetching pos_data for store ${storeId}: ${data.uber_message}`);
+    }
+  } catch (err) {
+    console.error("Error fetching pos_data after provisioned:", err);
+  }
 });
 
-socket.on("storeDeprovisioned", ({ storeId }) => {
-  const store = stores.find(s => s.id === storeId);
-  if (store) {
-    store.isActivated = false;
-    renderStores();
-    highlightStore(storeId);
-  } else fetchStores();
+socket.on("storeDeprovisioned", async ({ storeId }) => {
+  if (!storeId) return;
+  try {
+    const res = await fetch(`/api/get_pos_data/${storeId}`);
+    const data = await res.json();
+    if (res.ok) {
+      const store = stores.find(s => s.id === storeId);
+      if (store) store.isActivated = data.isActivated;
+      renderStores();
+    } else {
+      console.error(`Error fetching pos_data for store ${storeId}: ${data.uber_message}`);
+    }
+  } catch (err) {
+    console.error("Error fetching pos_data after deprovisioned:", err);
+  }
 });
 
 socket.on("webhookEvent", (event) => {
   events.unshift(event); // latest on top
   if (events.length > 50) events.pop();
   renderEvents();
-  highlightEvent(0); // highlight newest (at index 0)
 });
-
-// --------------------
-// Highlight helpers
-// --------------------
-function highlightStore(storeId) {
-  const liElements = storeList.querySelectorAll('li');
-  liElements.forEach(li => {
-    if (li.textContent.includes(storeId)) {
-      li.classList.add('highlight');
-      setTimeout(() => li.classList.remove('highlight'), 2000);
-    }
-  });
-}
-
-function highlightEvent(index) {
-  const liElements = eventList.querySelectorAll('li');
-  if (liElements[index]) {
-    liElements[index].classList.add('highlight');
-    setTimeout(() => liElements[index].classList.remove('highlight'), 2000);
-  }
-}
 
 // --------------------
 // Toggle event details
@@ -293,15 +285,13 @@ function renderEvents() {
     const li = document.createElement('li');
     li.classList.add('event-item');
 
-    // Left container: info + [+Details]
     const leftDiv = document.createElement('div');
     leftDiv.style.display = 'flex';
     leftDiv.style.alignItems = 'center';
     leftDiv.style.gap = '6px';
 
     const infoSpan = document.createElement('span');
-    const storeName = e.raw?.partner_store_id || e.storeId || '(unknown)';
-    infoSpan.innerHTML = `📩 [${formattedTime}] 🏬 <strong>${storeName}</strong> | ${e.type}`;
+    infoSpan.innerHTML = `📩 [${formattedTime}] - Event: ${e.type}`;
     leftDiv.appendChild(infoSpan);
 
     const detailsBtn = document.createElement('button');
@@ -312,7 +302,6 @@ function renderEvents() {
 
     li.appendChild(leftDiv);
 
-    // Hidden container for details
     const detailsDiv = document.createElement('div');
     detailsDiv.id = `event-details-${idx}`;
     detailsDiv.classList.add('event-details');

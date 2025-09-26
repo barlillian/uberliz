@@ -2,12 +2,15 @@ const express = require("express");
 const crypto = require("crypto");
 const router = express.Router();
 const storage = require("./storage");
+const { getStorePosData } = require("./api");
 require("dotenv").config();
 
 // --------------------
-// Middleware
+// Middleware: capture rawBody for signature verification
 // --------------------
-router.use(express.json());
+router.use(express.json({
+  verify: (req, res, buf) => { req.rawBody = buf.toString(); }
+}));
 
 // --------------------
 // Utility: verify Uber signature
@@ -16,7 +19,6 @@ function verifyUberSignature(req) {
   const signature = req.headers["x-uber-signature"];
   if (!signature) return false;
 
-  // Use separate webhook secret from .env
   const computed = crypto
     .createHmac("sha256", process.env.WEBHOOK_SECRET)
     .update(req.rawBody || "")
@@ -26,9 +28,9 @@ function verifyUberSignature(req) {
 }
 
 // --------------------
-// Webhook endpoint for all Uber events
+// Webhook endpoint
 // --------------------
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   const io = req.app.get("io"); // Socket.IO instance
 
   if (!verifyUberSignature(req)) {
@@ -41,38 +43,34 @@ router.post("/", (req, res) => {
 
   console.log("📩 Received Uber webhook:", event);
 
-  // ✅ Update activation status
-  if (event.event_type === "store.provisioned" && storeId) {
-    storage.activationStatus[storeId] = "activated";
-    console.log(`✅ Store provisioned: ${storeId}`);
-  }
-
-  if (event.event_type === "store.deprovisioned" && storeId) {
-    storage.activationStatus[storeId] = "deactivated";
-    console.log(`⚠️ Store deprovisioned: ${storeId}`);
-  }
-
-  // ✅ Log all events without merchant ID
+  // ✅ Log latest 50 events
   const logEntry = {
     timestamp: new Date().toISOString(),
     type: event.event_type,
     storeId: storeId || null,
     raw: event
   };
-  storage.events.push(logEntry);
+  storage.events.unshift(logEntry); // latest on top
+  if (storage.events.length > 50) storage.events.pop();
 
-  // Emit real-time events
-  if (io) {
-    if (storeId) {
-      if (event.event_type === "store.provisioned") io.emit("storeProvisioned", { storeId });
-      if (event.event_type === "store.deprovisioned") io.emit("storeDeprovisioned", { storeId });
+  // Emit real-time event to frontend
+  if (io) io.emit("webhookEvent", logEntry);
+
+  // ✅ Only update activationStatus for relevant events
+  if (["store.provisioned", "store.deprovisioned"].includes(event.event_type) && storeId) {
+    try {
+      // Use backend API helper to call GET /get_pos_data/:store_id (client credentials)
+      const posData = await getStorePosData(storeId);
+      storage.activationStatus[storeId] = posData.integration_enabled ? "activated" : "deactivated";
+      console.log(`🔄 Updated activationStatus from GET /get_pos_data for store ${storeId}:`, storage.activationStatus[storeId]);
+
+      if (io) io.emit("storeStatusUpdated", { storeId, status: storage.activationStatus[storeId] });
+    } catch (err) {
+      console.error(`❌ Failed to update store status from GET /get_pos_data for store ${storeId}`, err.message);
     }
-    io.emit("webhookEvent", logEntry);
   }
 
-  // 👇 Add this console log so you know you responded 200
   console.log("✅ Responded 200 to Uber webhook:", event.event_type, "for store:", storeId);
-
   return res.sendStatus(200);
 });
 
