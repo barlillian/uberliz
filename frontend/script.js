@@ -199,43 +199,6 @@ async function activateStore(storeId, btnElement) {
 // --------------------
 const socket = io();
 
-socket.on("storeProvisioned", async ({ storeId }) => {
-  if (!storeId) return;
-  try {
-    const res = await fetch(`/api/get_pos_data/${storeId}`);
-    const data = await res.json();
-    if (res.ok) {
-      const store = stores.find(s => s.id === storeId);
-      if (store) store.isActivated = data.isActivated;
-      renderStores();
-    } else {
-      console.error(`Error fetching pos_data for store ${storeId}: ${data.uber_message}`);
-    }
-  } catch (err) {
-    console.error("Error fetching pos_data after provisioned:", err);
-  }
-});
-
-socket.on("storeDeprovisioned", async ({ storeId }) => {
-  if (!storeId) return;
-  try {
-    const res = await fetch(`/api/get_pos_data/${storeId}`);
-    const data = await res.json();
-    if (res.ok) {
-      const store = stores.find(s => s.id === storeId);
-      if (store) store.isActivated = data.isActivated;
-      renderStores();
-    } else {
-      console.error(`Error fetching pos_data for store ${storeId}: ${data.uber_message}`);
-    }
-  } catch (err) {
-    console.error("Error fetching pos_data after deprovisioned:", err);
-  }
-});
-
-// --------------------
-// NEW: listen to backend "storeStatusUpdated" event
-// --------------------
 socket.on("storeStatusUpdated", ({ storeId, status }) => {
   const store = stores.find(s => s.id === storeId);
   if (store) {

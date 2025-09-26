@@ -58,14 +58,21 @@ router.post("/", async (req, res) => {
   // Only update activationStatus for relevant events
   if (["store.provisioned", "store.deprovisioned"].includes(event.event_type) && storeId) {
     try {
-      console.log(`📡 Webhook triggering client credentials fetch for store ${storeId}`);
-      const posData = await apiRouter.getStorePosData(storeId);
-      storage.activationStatus[storeId] = posData.integration_enabled ? "activated" : "deactivated";
-      console.log(`🔄 Updated activationStatus for store ${storeId}:`, storage.activationStatus[storeId]);
+      if (event.event_type === "store.provisioned") {
+        // Integration exists, fetch POS data
+        console.log(`📡 Webhook triggering client credentials fetch for store ${storeId}`);
+        const posData = await apiRouter.getStorePosData(storeId);
+        storage.activationStatus[storeId] = posData.integration_enabled ? "activated" : "deactivated";
+        console.log(`🔄 Updated activationStatus for store ${storeId}:`, storage.activationStatus[storeId]);
+      } else if (event.event_type === "store.deprovisioned") {
+        // Integration removed, mark deactivated directly
+        storage.activationStatus[storeId] = "deactivated";
+        console.log(`🔄 Store ${storeId} deprovisioned, marked as deactivated`);
+      }
 
       if (io) io.emit("storeStatusUpdated", { storeId, status: storage.activationStatus[storeId] });
     } catch (err) {
-      console.error(`❌ Failed to update store status for store ${storeId} via client credentials`, err.message);
+      console.error(`❌ Failed to update store status for store ${storeId}`, err.message);
     }
   }
 
