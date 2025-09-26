@@ -89,9 +89,10 @@ This is a **minimal viable product (MVP)** demonstrating the Uber Eats Integrati
 
 ### 6️⃣ Edge Cases / Notes
 - **Provisioned webhook** can be triggered by both `POST /pos_data` or `PATCH /pos_data` → that’s why backend confirms with `GET /pos_data` before marking "✅ Activated".  
-- **Deprovisioned webhook** is reliable so directly marked "👉 Link App to Store".   
+- **Deprovisioned webhook** is reliable → directly marked "👉 Link App to Store".   
 - **Events & tokens** are stored **in-memory only** (lost on server restart).  
-- **No retry/timeout handling** for failed activations in this MVP.  
+- **No retry/timeout handling** for failed activations in this MVP.
+- **Local testing limitation:** Webhooks cannot be tested locally. Uber only allows one webhook URL per app so I use Render for testing.
 
 ---
 
