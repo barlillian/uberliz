@@ -233,6 +233,18 @@ socket.on("storeDeprovisioned", async ({ storeId }) => {
   }
 });
 
+// --------------------
+// NEW: listen to backend "storeStatusUpdated" event
+// --------------------
+socket.on("storeStatusUpdated", ({ storeId, status }) => {
+  const store = stores.find(s => s.id === storeId);
+  if (store) {
+    store.isActivated = status === "activated";
+    delete loadingStores[storeId]; // remove "awaiting" state
+    renderStores();
+  }
+});
+
 socket.on("webhookEvent", (event) => {
   events.unshift(event); // latest on top
   if (events.length > 50) events.pop();
