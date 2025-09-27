@@ -18,14 +18,21 @@ This is a **minimal viable product (MVP)** demonstrating the Uber Eats Integrati
 
 ### 1️⃣ OAuth Authorization & Token Exchange
 - **Flow:** (Authorization Code Flow)
-  1. Merchant clicks **"Connect with Uber Eats"** → triggers app endpoint `/oauth/login`
-  2. App redirects merchant to Uber OAuth:  
+  1. Merchant clicks **"Connect with Uber Eats"** in App UI→ triggers app call `GET /oauth/login`
+  2. App redirects merchant to Uber's login:  
      `GET https://auth.uber.com/oauth/v2/authorize`
-  3. Merchant logs in and consents → Uber redirects back to app `/oauth/redirect?code=...`
-  4. Backend exchanges `authorization_code` for **Access Token** + **Refresh Token** via:  
-     `POST https://auth.uber.com/oauth/v2/token`
-  5. Tokens are stored **in-memory** for this session
+  3. Merchant logs in Uber account and clicks "Allow" → Uber redirects back to app and call `GET /oauth/redirect?code=...`
+  4. App backend exchanges `authorization_code` for **Access Token** via:  
+     `POST https://auth.uber.com/oauth/v2/token` with  `grant_type=authorization_code`
+  5. UBER returns User Token and app stores tokens **in-memory** & session mapping
 - **UI:** "Connect with Uber Eats" button  
+- **Note** If token expires → redirect merchant to re-login (no UI alert yet)
+
+- **Flow:** (Client Credentials Flow)
+  1. Triggered by app-level access endpoints like `GET/get_pos_daa/:store_id
+  2. App backend calls `POST https://auth.uber.com/oauth/v2/token` with `grant_type=client_credentials`
+  3. UBER returns App Token and app stores tokens **in-memory** 
+- **Note** Token automatically refreshed if expired. 
 
 ---
 
@@ -84,6 +91,7 @@ This is a **minimal viable product (MVP)** demonstrating the Uber Eats Integrati
 - **Webhook Events Section:**  
   - Displays a live log of the last 50 webhook payloads  
   - Expandable `[+Details]` view for inspecting raw event data  
+
 
 ---
 

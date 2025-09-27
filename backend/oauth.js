@@ -48,10 +48,10 @@ router.get("/redirect", async (req, res) => {
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
 
-    const { access_token, refresh_token, expires_in } = tokenResponse.data;
+    const { access_token, expires_in } = tokenResponse.data;
     const tokenKey = `token-${Date.now()}`;
 
-    storage.userTokens[tokenKey] = { access_token, refresh_token, expires_in, obtained_at: Date.now() };
+    storage.userTokens[tokenKey] = { access_token, expires_in, obtained_at: Date.now() };
     console.log(`➡️ OAuth token stored for session ${tokenKey}`);
 
     res.redirect(`/?oauth_success=true`);
@@ -61,37 +61,26 @@ router.get("/redirect", async (req, res) => {
 });
 
 // --------------------
-// Helper: get valid token for OAuth sessions
+// Helper: get valid User Token for OAuth sessions
 // --------------------
-async function getValidToken(tokenKey) {
+async function getValidToken(tokenKey, res) {
   const record = storage.userTokens[tokenKey];
   if (!record) throw new Error("No token stored for this session");
 
   const now = Date.now();
   const expiresAt = record.obtained_at + record.expires_in * 1000;
 
+  // Token still valid
   if (now < expiresAt - 60 * 1000) return record.access_token;
 
-  try {
-    const refreshResponse = await axios.post(
-      "https://auth.uber.com/oauth/v2/token",
-      qs.stringify({
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        grant_type: "refresh_token",
-        refresh_token: record.refresh_token
-      }),
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-    );
+  // Token expired → user must re-login
+  console.log(`⚠️ User Token expired for session ${tokenKey}, redirecting to /login`);
 
-    const { access_token, refresh_token, expires_in } = refreshResponse.data;
-    storage.userTokens[tokenKey] = { access_token, refresh_token, expires_in, obtained_at: Date.now() };
-    console.log(`🔄 OAuth token refreshed successfully for session ${tokenKey}`);
-    return access_token;
-  } catch (err) {
-    console.error("Token refresh error:", err.response?.data || err.message);
-    throw new Error("Unable to refresh token. Merchant may need to re-login.");
+  if (res) {
+    return res.redirect("/oauth/login");
   }
+
+  throw new Error("User Token expired. Merchant must re-login via /oauth/login.");
 }
 
 // --------------------
