@@ -31,7 +31,12 @@ router.get("/redirect", async (req, res) => {
   const { code, error, state } = req.query;
 
   // Handle OAuth errors
-  if (error) return res.status(403).send(`⚠️ Authorization failed: ${error}`);
+  if (error) {
+    return res.status(403).send(`
+      ⚠️ Authorization failed: ${error}.<br>
+      Please open <a href="https://uberliz.onrender.com">this page</a> and click "Connect my Uber Eats Account" to authorize again.
+    `);
+  }
   if (!code) return res.status(400).send(`⚠️ Missing authorization code.`);
 
   // Graceful fallback if state missing (common on Render cold starts)
