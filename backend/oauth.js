@@ -30,12 +30,23 @@ router.get("/login", (req, res) => {
 router.get("/redirect", async (req, res) => {
   const { code, error, state } = req.query;
 
+  // Handle OAuth errors
   if (error) return res.status(403).send(`⚠️ Authorization failed: ${error}`);
   if (!code) return res.status(400).send(`⚠️ Missing authorization code.`);
-  if (!state || !storage.oauthStates[state]) return res.status(400).send(`⚠️ Invalid state parameter.`);
+
+  // Graceful fallback if state missing (common on Render cold starts)
+  if (!state || !storage.oauthStates[state]) {
+    console.warn("⚠️ Missing or invalid OAuth state — restarting OAuth login flow");
+    // optional: could redirect straight to / to restart clean
+    return res.redirect("/oauth/login");
+  }
+
+  // State is valid → remove it to prevent replay
   delete storage.oauthStates[state];
 
   try {
+    console.log("🔐 Exchanging Uber code for token...");
+
     const tokenResponse = await axios.post(
       "https://auth.uber.com/oauth/v2/token",
       qs.stringify({
@@ -43,7 +54,7 @@ router.get("/redirect", async (req, res) => {
         client_secret: CLIENT_SECRET,
         grant_type: "authorization_code",
         redirect_uri: REDIRECT_URI,
-        code
+        code,
       }),
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
@@ -51,10 +62,15 @@ router.get("/redirect", async (req, res) => {
     const { access_token, expires_in } = tokenResponse.data;
     const tokenKey = `token-${Date.now()}`;
 
-    storage.userTokens[tokenKey] = { access_token, expires_in, obtained_at: Date.now() };
-    console.log(`➡️ OAuth token stored for session ${tokenKey}`);
+    storage.userTokens[tokenKey] = {
+      access_token,
+      expires_in,
+      obtained_at: Date.now(),
+    };
+    console.log(`✅ OAuth token stored for session ${tokenKey}`);
 
-    res.redirect(`/?oauth_success=true`);
+    // Clean redirect — prevent ?code=... from sticking in browser bar
+    res.redirect(`/`);
   } catch (err) {
     handleOAuthError(err, res);
   }

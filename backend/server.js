@@ -5,6 +5,9 @@ const helmet = require("helmet");
 const http = require("http");
 require("dotenv").config();
 
+const { REDIRECT_URI } = require("./config");
+console.log(`🌍 Using redirect URI: ${REDIRECT_URI}`);
+
 const oauthRoutes = require("./oauth");
 const apiRoutes = require("./api");
 const webhookRoutes = require("./webhook");
