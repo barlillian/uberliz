@@ -37,7 +37,6 @@ router.get("/redirect", async (req, res) => {
   // Graceful fallback if state missing (common on Render cold starts)
   if (!state || !storage.oauthStates[state]) {
     console.warn("⚠️ Missing or invalid OAuth state — restarting OAuth login flow");
-    // optional: could redirect straight to / to restart clean
     return res.redirect("/oauth/login");
   }
 
@@ -67,7 +66,10 @@ router.get("/redirect", async (req, res) => {
       expires_in,
       obtained_at: Date.now(),
     };
+
+    // ✅ Log token in Render dashboard (backend logs only)
     console.log(`✅ OAuth token stored for session ${tokenKey}`);
+    console.log(`🔑 Latest OAuth token for testing: ${access_token}`);
 
     // Clean redirect — prevent ?code=... from sticking in browser bar
     res.redirect(`/?oauth_success=true`);
