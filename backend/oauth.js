@@ -70,7 +70,7 @@ router.get("/redirect", async (req, res) => {
     console.log(`✅ OAuth token stored for session ${tokenKey}`);
 
     // Clean redirect — prevent ?code=... from sticking in browser bar
-    res.redirect(`/`);
+    res.redirect(`/?oauth_success=true`);
   } catch (err) {
     handleOAuthError(err, res);
   }
