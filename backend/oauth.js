@@ -69,7 +69,7 @@ router.get("/redirect", async (req, res) => {
 
     // ✅ Log token in Render dashboard (backend logs only)
     console.log(`✅ OAuth token stored for session ${tokenKey}`);
-    console.log(`🔑 Latest OAuth token for testing: ${access_token}`);
+    console.log(`🔑 Latest User OAuth token for testing: ${access_token}`);
 
     // Clean redirect — prevent ?code=... from sticking in browser bar
     res.redirect(`/?oauth_success=true`);
