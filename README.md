@@ -17,7 +17,6 @@ It was built for an **Uber technical interview project** to showcase full-stack 
 ## 🔗 Resources
 - 🧭 [Lucidchart: Integration Workflow Diagram](https://lucid.app/lucidchart/9ba4efa2-d7ea-4072-a5b6-03264c81cbe2/edit?invitationId=inv_ffb6cfa4-ab55-4434-b9c7-dffcf0a19bcb&page=0_0#)
 - 🎥 [Demo Recording (YouTube)](https://www.youtube.com/watch?v=OcUnDGxT8rY)
-- 🚀 [App Website (Render)](https://uberliz.onrender.com/)
 
 ---
 
