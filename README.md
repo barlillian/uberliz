@@ -63,6 +63,21 @@ It was built for an **Uber technical interview project** to showcase full-stack 
 
 ---
 
+## ⚖️ License & Usage Notice
+
+This project is shared publicly **for educational and portfolio purposes only.**  
+It was built as part of an **Uber technical interview project** and is **not an official Uber product**.
+
+Use of this code is subject to the following conditions:
+- ❌ **Commercial or production use is not permitted** without the author’s explicit written consent.  
+- ✅ You may **view, fork, or reference** the code for learning and demonstration purposes.  
+- ⚠️ The author assumes **no liability or warranty** for any use of this code.
+
+If you wish to reuse or adapt parts of this project beyond personal or educational purposes,  
+please **contact the author (Liz Chen)** to request permission.
+
+---
+
 ## 🛠️ Tech Stack
 | Layer | Technology |
 |-------|-------------|
